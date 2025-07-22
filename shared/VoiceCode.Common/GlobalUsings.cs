@@ -1,0 +1,10 @@
+global using System;
+global using System.Collections.Generic;
+global using System.Linq;
+global using System.Threading.Tasks;
+global using VoiceCode.Common.Models;
+global using VoiceCode.Common.Enums;
+global using VoiceCode.Common.Constants;
+global using VoiceCode.Common.Exceptions;
+global using VoiceCode.Common.Extensions;
+global using VoiceCode.Common.Validation;

@@ -1,0 +1,65 @@
+# Project Configuration
+project_name = "voicecode"
+environment  = "dev"
+location     = "eastus"
+location_short = "eus"
+
+# Admin Configuration
+admin_email = "admin@example.com"
+
+# Optional: Custom domain
+# domain_name = "voicecode.example.com"
+
+# Service Configuration
+service_plan_sku      = "P1v3"
+service_plan_capacity = 2
+
+# Speech Services
+speech_service_sku = "S0"
+
+# Service Bus
+servicebus_sku = "Standard"
+
+# Redis Configuration
+redis_sku = {
+  name     = "Standard"
+  family   = "C"
+  capacity = 1
+}
+
+# Cosmos DB
+cosmosdb_consistency_level = "Session"
+cosmosdb_max_throughput   = 4000
+
+# Storage
+storage_replication_type = "LRS"
+
+# Networking
+enable_private_endpoints = false
+allowed_ip_ranges       = []
+
+# Monitoring
+log_retention_days = 30
+enable_diagnostics = true
+
+# Container Registry
+acr_sku = "Standard"
+
+# API Management
+apim_sku      = "Developer"
+apim_capacity = 1
+
+# Azure AD B2C
+b2c_tenant_name = "voicecodeb2c"
+
+# Secrets (use environment variables or Azure Key Vault)
+# claude_api_key = "your-claude-api-key"
+# openai_api_key = "your-openai-api-key"  # Optional
+
+# Tags
+tags = {
+  ManagedBy   = "Terraform"
+  Project     = "VoiceCode"
+  Environment = "Development"
+  Owner       = "Your Team"
+}

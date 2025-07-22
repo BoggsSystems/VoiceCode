@@ -1,0 +1,331 @@
+using Microsoft.CognitiveServices.Speech;
+using Microsoft.CognitiveServices.Speech.Audio;
+using Microsoft.Extensions.Options;
+using Polly;
+using Polly.Retry;
+using VoiceCode.Common.Interfaces;
+using VoiceCode.Common.Models;
+using VoiceCode.TTSService.Configuration;
+using VoiceCode.TTSService.Services.Interfaces;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace VoiceCode.TTSService.Services;
+
+public class TextToSpeechService : ITTSService, IDisposable
+{
+    private readonly ILogger<TextToSpeechService> _logger;
+    private readonly IOptions<AzureSpeechOptions> _speechOptions;
+    private readonly IOptions<VoiceOptions> _voiceOptions;
+    private readonly IAudioStorageService _audioStorage;
+    private readonly ICacheService _cache;
+    private readonly IVoicePersonalityService _personalityService;
+    private readonly ISSMLBuilder _ssmlBuilder;
+    private readonly SpeechConfig _speechConfig;
+    private readonly SemaphoreSlim _semaphore;
+    private readonly AsyncRetryPolicy _retryPolicy;
+
+    public TextToSpeechService(
+        ILogger<TextToSpeechService> logger,
+        IOptions<AzureSpeechOptions> speechOptions,
+        IOptions<VoiceOptions> voiceOptions,
+        IAudioStorageService audioStorage,
+        ICacheService cache,
+        IVoicePersonalityService personalityService,
+        ISSMLBuilder ssmlBuilder)
+    {
+        _logger = logger;
+        _speechOptions = speechOptions;
+        _voiceOptions = voiceOptions;
+        _audioStorage = audioStorage;
+        _cache = cache;
+        _personalityService = personalityService;
+        _ssmlBuilder = ssmlBuilder;
+
+        // Configure Speech SDK
+        if (_speechOptions.Value.UseCustomEndpoint && !string.IsNullOrEmpty(_speechOptions.Value.Endpoint))
+        {
+            _speechConfig = SpeechConfig.FromEndpoint(
+                new Uri(_speechOptions.Value.Endpoint),
+                _speechOptions.Value.Key);
+        }
+        else
+        {
+            _speechConfig = SpeechConfig.FromSubscription(
+                _speechOptions.Value.Key,
+                _speechOptions.Value.Region);
+        }
+
+        _speechConfig.SpeechSynthesisVoiceName = _voiceOptions.Value.DefaultVoice;
+        _speechConfig.SetSpeechSynthesisOutputFormat(GetSpeechSynthesisOutputFormat());
+
+        _semaphore = new SemaphoreSlim(_speechOptions.Value.MaxConcurrentSynthesis);
+
+        _retryPolicy = Policy
+            .Handle<Exception>()
+            .WaitAndRetryAsync(
+                3,
+                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                onRetry: (exception, timeSpan, retryCount, context) =>
+                {
+                    _logger.LogWarning(
+                        "TTS retry attempt {RetryCount} after {TimeSpan}s: {Exception}",
+                        retryCount, timeSpan.TotalSeconds, exception.Message);
+                });
+    }
+
+    public async Task<SynthesisResult> SynthesizeAsync(SynthesisRequest request)
+    {
+        try
+        {
+            // Check cache if enabled
+            if (_voiceOptions.Value.CacheAudio)
+            {
+                var cacheKey = GenerateCacheKey(request);
+                var cachedResult = await _cache.GetAsync<SynthesisResult>(cacheKey);
+                if (cachedResult != null)
+                {
+                    _logger.LogInformation("Returning cached audio for text hash {CacheKey}", cacheKey);
+                    return cachedResult;
+                }
+            }
+
+            // Get voice profile and personality
+            var profile = await _personalityService.GetVoiceProfileAsync(request.VoiceProfile ?? "default");
+            var ssml = await BuildSSMLAsync(request.Text, profile, request.Emotion);
+
+            // Synthesize speech
+            var audioData = await SynthesizeSpeechAsync(ssml, profile);
+
+            // Store audio if requested
+            string? audioUrl = null;
+            if (request.StoreAudio)
+            {
+                audioUrl = await _audioStorage.StoreAudioAsync(
+                    audioData,
+                    request.SessionId ?? Guid.NewGuid().ToString(),
+                    GetFileExtension(profile.Voice));
+            }
+
+            var result = new SynthesisResult
+            {
+                Id = Guid.NewGuid().ToString(),
+                AudioData = request.ReturnAudioData ? audioData : null,
+                AudioUrl = audioUrl,
+                Format = GetAudioFormat(profile.Voice),
+                Duration = CalculateDuration(audioData),
+                VoiceUsed = profile.Voice,
+                SessionId = request.SessionId,
+                Timestamp = DateTime.UtcNow
+            };
+
+            // Cache result if enabled
+            if (_voiceOptions.Value.CacheAudio)
+            {
+                var cacheKey = GenerateCacheKey(request);
+                await _cache.SetAsync(cacheKey, result, _voiceOptions.Value.CacheDuration);
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error synthesizing speech");
+            throw new TTSException("Failed to synthesize speech", ex);
+        }
+    }
+
+    public async Task<SynthesisResult> SynthesizeWithPersonalityAsync(
+        string text,
+        PersonalityProfile personality,
+        string? emotion = null)
+    {
+        var request = new SynthesisRequest
+        {
+            Text = text,
+            VoiceProfile = personality.ToString().ToLower(),
+            Emotion = emotion,
+            StoreAudio = true,
+            ReturnAudioData = true
+        };
+
+        return await SynthesizeAsync(request);
+    }
+
+    public async Task<StreamingSynthesisResult> StreamSynthesizeAsync(
+        string text,
+        string? voiceProfile = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var profile = await _personalityService.GetVoiceProfileAsync(voiceProfile ?? "default");
+            var ssml = await BuildSSMLAsync(text, profile, null);
+
+            var audioConfig = AudioConfig.FromStreamOutput(AudioOutputStream.CreatePullStream());
+            using var synthesizer = new SpeechSynthesizer(_speechConfig, audioConfig);
+
+            var tcs = new TaskCompletionSource<StreamingSynthesisResult>();
+            var chunks = new List<byte[]>();
+
+            synthesizer.Synthesizing += (s, e) =>
+            {
+                if (e.Result.AudioData.Length > 0)
+                {
+                    chunks.Add(e.Result.AudioData);
+                }
+            };
+
+            synthesizer.SynthesisCompleted += (s, e) =>
+            {
+                var result = new StreamingSynthesisResult
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    AudioChunks = chunks,
+                    Format = GetAudioFormat(profile.Voice),
+                    VoiceUsed = profile.Voice,
+                    Timestamp = DateTime.UtcNow
+                };
+                tcs.SetResult(result);
+            };
+
+            synthesizer.SynthesisCanceled += (s, e) =>
+            {
+                if (e.Reason == CancellationReason.Error)
+                {
+                    tcs.SetException(new TTSException($"Synthesis failed: {e.ErrorDetails}"));
+                }
+                else
+                {
+                    tcs.SetCanceled();
+                }
+            };
+
+            await synthesizer.SpeakSsmlAsync(ssml);
+            return await tcs.Task;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in streaming synthesis");
+            throw new TTSException("Failed to stream synthesize speech", ex);
+        }
+    }
+
+    private async Task<string> BuildSSMLAsync(string text, VoiceProfile profile, string? emotion)
+    {
+        if (!_voiceOptions.Value.EnableSSML)
+        {
+            return text;
+        }
+
+        return await _ssmlBuilder.BuildAsync(text, profile, emotion);
+    }
+
+    private async Task<byte[]> SynthesizeSpeechAsync(string ssml, VoiceProfile profile)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            return await _retryPolicy.ExecuteAsync(async () =>
+            {
+                using var synthesizer = new SpeechSynthesizer(_speechConfig);
+                
+                var result = await synthesizer.SpeakSsmlAsync(ssml)
+                    .ConfigureAwait(false);
+
+                if (result.Reason == ResultReason.SynthesizingAudioCompleted)
+                {
+                    return result.AudioData;
+                }
+                else if (result.Reason == ResultReason.Canceled)
+                {
+                    var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
+                    throw new TTSException(
+                        $"Speech synthesis canceled: {cancellation.Reason} - {cancellation.ErrorDetails}");
+                }
+
+                throw new TTSException("Speech synthesis failed");
+            });
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    private SpeechSynthesisOutputFormat GetSpeechSynthesisOutputFormat()
+    {
+        return _voiceOptions.Value.DefaultFormat switch
+        {
+            AudioOutputFormat.Audio16Khz32KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
+            AudioOutputFormat.Audio16Khz64KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio16Khz64KBitRateMonoMp3,
+            AudioOutputFormat.Audio16Khz128KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3,
+            AudioOutputFormat.Audio24Khz48KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3,
+            AudioOutputFormat.Audio24Khz96KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
+            AudioOutputFormat.Audio24Khz160KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio24Khz160KBitRateMonoMp3,
+            AudioOutputFormat.Audio48Khz96KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3,
+            AudioOutputFormat.Audio48Khz192KBitRateMonoMp3 => SpeechSynthesisOutputFormat.Audio48Khz192KBitRateMonoMp3,
+            AudioOutputFormat.Ogg16Khz16BitMonoOpus => SpeechSynthesisOutputFormat.Ogg16Khz16BitMonoOpus,
+            AudioOutputFormat.Ogg24Khz16BitMonoOpus => SpeechSynthesisOutputFormat.Ogg24Khz16BitMonoOpus,
+            AudioOutputFormat.Raw16Khz16BitMonoPcm => SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm,
+            AudioOutputFormat.Raw24Khz16BitMonoPcm => SpeechSynthesisOutputFormat.Raw24Khz16BitMonoPcm,
+            AudioOutputFormat.Raw48Khz16BitMonoPcm => SpeechSynthesisOutputFormat.Raw48Khz16BitMonoPcm,
+            _ => SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3
+        };
+    }
+
+    private string GetAudioFormat(string voice)
+    {
+        return _voiceOptions.Value.DefaultFormat.ToString().ToLower();
+    }
+
+    private string GetFileExtension(string voice)
+    {
+        return _voiceOptions.Value.DefaultFormat.ToString().Contains("Mp3") ? ".mp3" :
+               _voiceOptions.Value.DefaultFormat.ToString().Contains("Opus") ? ".opus" :
+               ".pcm";
+    }
+
+    private TimeSpan CalculateDuration(byte[] audioData)
+    {
+        // Simplified duration calculation based on format and data size
+        var bitRate = GetBitRate();
+        var seconds = (audioData.Length * 8.0) / bitRate;
+        return TimeSpan.FromSeconds(seconds);
+    }
+
+    private int GetBitRate()
+    {
+        return _voiceOptions.Value.DefaultFormat switch
+        {
+            AudioOutputFormat.Audio16Khz32KBitRateMonoMp3 => 32000,
+            AudioOutputFormat.Audio16Khz64KBitRateMonoMp3 => 64000,
+            AudioOutputFormat.Audio16Khz128KBitRateMonoMp3 => 128000,
+            AudioOutputFormat.Audio24Khz48KBitRateMonoMp3 => 48000,
+            AudioOutputFormat.Audio24Khz96KBitRateMonoMp3 => 96000,
+            AudioOutputFormat.Audio24Khz160KBitRateMonoMp3 => 160000,
+            AudioOutputFormat.Audio48Khz96KBitRateMonoMp3 => 96000,
+            AudioOutputFormat.Audio48Khz192KBitRateMonoMp3 => 192000,
+            _ => 32000
+        };
+    }
+
+    private string GenerateCacheKey(SynthesisRequest request)
+    {
+        var key = $"{request.Text}:{request.VoiceProfile}:{request.Emotion}";
+        using var sha256 = SHA256.Create();
+        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
+        return Convert.ToBase64String(hash);
+    }
+
+    public void Dispose()
+    {
+        _semaphore?.Dispose();
+    }
+}
+
+public class TTSException : Exception
+{
+    public TTSException(string message) : base(message) { }
+    public TTSException(string message, Exception innerException) : base(message, innerException) { }
+}

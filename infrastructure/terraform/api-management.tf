@@ -1,0 +1,192 @@
+# API Management Instance
+resource "azurerm_api_management" "main" {
+  name                = "${local.resource_prefix}-apim"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  publisher_name      = var.project_name
+  publisher_email     = var.admin_email
+  sku_name            = "${var.apim_sku}_${var.apim_capacity}"
+  
+  identity {
+    type = "SystemAssigned"
+  }
+  
+  tags = local.common_tags
+}
+
+# API Management APIs
+resource "azurerm_api_management_api" "services" {
+  for_each = local.services
+  
+  name                = "${each.value}-api"
+  resource_group_name = azurerm_resource_group.main.name
+  api_management_name = azurerm_api_management.main.name
+  revision            = "1"
+  display_name        = "${upper(each.value)} Service API"
+  path                = each.value
+  protocols           = ["https"]
+  
+  subscription_required = true
+  
+  import {
+    content_format = "openapi+json-link"
+    content_value  = "https://${azurerm_linux_web_app.services[each.key].default_hostname}/swagger/v1/swagger.json"
+  }
+}
+
+# API Management Backend for each service
+resource "azurerm_api_management_backend" "services" {
+  for_each = local.services
+  
+  name                = "${each.value}-backend"
+  resource_group_name = azurerm_resource_group.main.name
+  api_management_name = azurerm_api_management.main.name
+  protocol            = "http"
+  url                 = "https://${azurerm_linux_web_app.services[each.key].default_hostname}"
+  
+  credentials {
+    header = {
+      "X-Functions-Key" = azurerm_linux_web_app.services[each.key].host_keys[0].default_function_key
+    }
+  }
+}
+
+# API Management Products
+resource "azurerm_api_management_product" "main" {
+  product_id            = "voicecode"
+  api_management_name   = azurerm_api_management.main.name
+  resource_group_name   = azurerm_resource_group.main.name
+  display_name          = "VoiceCode API"
+  description           = "Access to all VoiceCode services"
+  subscription_required = true
+  approval_required     = true
+  published             = true
+}
+
+# Add APIs to Product
+resource "azurerm_api_management_product_api" "services" {
+  for_each = local.services
+  
+  api_name            = azurerm_api_management_api.services[each.key].name
+  product_id          = azurerm_api_management_product.main.product_id
+  api_management_name = azurerm_api_management.main.name
+  resource_group_name = azurerm_resource_group.main.name
+}
+
+# API Management Policies
+resource "azurerm_api_management_api_policy" "services" {
+  for_each = local.services
+  
+  api_name            = azurerm_api_management_api.services[each.key].name
+  api_management_name = azurerm_api_management.main.name
+  resource_group_name = azurerm_resource_group.main.name
+  
+  xml_content = <<XML
+<policies>
+  <inbound>
+    <base />
+    <set-backend-service backend-id="${each.value}-backend" />
+    <authentication-managed-identity resource="${azuread_application.services[each.key].application_id}" />
+    <rate-limit calls="100" renewal-period="60" />
+    <cors allow-credentials="true">
+      <allowed-origins>
+        <origin>${var.domain_name != "" ? "https://${var.domain_name}" : "https://${azurerm_static_web_app.main.default_hostname}"}</origin>
+        <origin>http://localhost:3000</origin>
+      </allowed-origins>
+      <allowed-methods>
+        <method>*</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>*</header>
+      </allowed-headers>
+    </cors>
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+    <set-header name="X-Content-Type-Options" exists-action="override">
+      <value>nosniff</value>
+    </set-header>
+    <set-header name="X-Frame-Options" exists-action="override">
+      <value>DENY</value>
+    </set-header>
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+XML
+}
+
+# API Management Logger
+resource "azurerm_api_management_logger" "appinsights" {
+  name                = "appinsights-logger"
+  api_management_name = azurerm_api_management.main.name
+  resource_group_name = azurerm_resource_group.main.name
+  resource_id         = azurerm_application_insights.main.id
+  
+  application_insights {
+    instrumentation_key = azurerm_application_insights.main.instrumentation_key
+  }
+}
+
+# API Management Diagnostics
+resource "azurerm_api_management_diagnostic" "main" {
+  identifier               = "applicationinsights"
+  resource_group_name      = azurerm_resource_group.main.name
+  api_management_name      = azurerm_api_management.main.name
+  api_management_logger_id = azurerm_api_management_logger.appinsights.id
+  
+  sampling_percentage       = 100
+  always_log_errors         = true
+  log_client_ip             = true
+  verbosity                 = "information"
+  http_correlation_protocol = "W3C"
+  
+  frontend_request {
+    body_bytes = 32
+    headers_to_log = [
+      "content-type",
+      "accept",
+      "origin",
+    ]
+  }
+  
+  frontend_response {
+    body_bytes = 32
+    headers_to_log = [
+      "content-type",
+      "content-length",
+      "origin",
+    ]
+  }
+  
+  backend_request {
+    body_bytes = 32
+    headers_to_log = [
+      "content-type",
+      "accept",
+      "origin",
+    ]
+  }
+  
+  backend_response {
+    body_bytes = 32
+    headers_to_log = [
+      "content-type",
+      "content-length",
+      "origin",
+    ]
+  }
+}
+
+# Grant API Management access to Key Vault
+resource "azurerm_key_vault_access_policy" "apim" {
+  key_vault_id = azurerm_key_vault.main.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_api_management.main.identity[0].principal_id
+  
+  secret_permissions = ["Get", "List"]
+}
