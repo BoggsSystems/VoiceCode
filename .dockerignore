@@ -1,0 +1,91 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# .NET
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+**/*.suo
+**/*.userprefs
+**/.dotnet/
+**/.packages/
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Node
+**/node_modules/
+**/npm-debug.log
+**/yarn-error.log
+
+# Testing
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+!**/*.tfvars.example
+
+# Documentation
+docs/
+README.md
+*.md
+
+# Scripts
+scripts/
+*.sh
+
+# CI/CD
+.github/
+azure-pipelines.yml
+.dockerignore
+
+# Local settings
+**/appsettings.Local.json
+**/appsettings.Development.json
+**/.env
+**/.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+*.log

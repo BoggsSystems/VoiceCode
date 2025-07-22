@@ -1,0 +1,187 @@
+.code-block {
+  margin: 1rem 0;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  background-color: #f6f8fa;
+  overflow: hidden;
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  font-size: 0.875rem;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: #f1f3f4;
+  border-bottom: 1px solid #e1e4e8;
+}
+
+.code-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #586069;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.code-info i {
+  font-size: 1rem;
+}
+
+.language-name {
+  font-weight: 600;
+  color: #24292e;
+}
+
+.separator {
+  color: #d1d5da;
+}
+
+.file-name {
+  color: #586069;
+  font-family: monospace;
+}
+
+.code-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: none;
+  border: 1px solid #d1d5da;
+  border-radius: 4px;
+  padding: 0.375rem 0.75rem;
+  color: #586069;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.copy-button:hover {
+  background-color: #f3f4f6;
+  border-color: #c6cbd1;
+}
+
+.copy-button.copied {
+  color: #28a745;
+  border-color: #34d058;
+  background-color: #f0fff4;
+}
+
+.copy-text {
+  font-weight: 500;
+}
+
+.code-container {
+  background-color: #ffffff;
+  overflow-x: auto;
+}
+
+.code-content {
+  display: flex;
+  min-height: 0;
+}
+
+.line-numbers {
+  background-color: #f6f8fa;
+  border-right: 1px solid #e1e4e8;
+  padding: 1rem 0.75rem;
+  color: #6a737d;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: right;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.line-number {
+  min-height: 1.45em;
+}
+
+.code-text {
+  flex: 1;
+  overflow-x: auto;
+}
+
+.code-text pre {
+  margin: 0;
+  padding: 1rem;
+  background: transparent;
+  border: none;
+  overflow-x: auto;
+  line-height: 1.45;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.code-text code {
+  background: transparent;
+  color: #24292e;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font-size: inherit;
+  font-family: inherit;
+  white-space: pre;
+}
+
+/* Syntax highlighting for common keywords (basic) */
+.code-text code {
+  /* This is a very basic syntax highlighting - in a real app, you'd use a proper syntax highlighter like Prism.js or highlight.js */
+}
+
+/* Scrollbar styling for code container */
+.code-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.code-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.code-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.code-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+@media (max-width: 768px) {
+  .code-block {
+    margin: 0.75rem 0;
+    font-size: 0.8rem;
+  }
+  
+  .code-header {
+    padding: 0.5rem 0.75rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .code-info {
+    font-size: 0.75rem;
+  }
+  
+  .copy-button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  
+  .line-numbers {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  
+  .code-text pre {
+    padding: 0.75rem;
+  }
+}

@@ -1,0 +1,246 @@
+.voice-status-card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: fit-content;
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--status-color);
+  border-radius: 16px;
+  color: var(--status-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--status-color);
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.status-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-content {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.status-icon-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.status-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: var(--status-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.pulse-ring {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 80px;
+  height: 80px;
+  border: 2px solid var(--status-color);
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: pulseRing 2s ease-out infinite;
+}
+
+.status-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-description {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.status-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.feature-item i {
+  width: 16px;
+  color: #007acc;
+  font-size: 0.9rem;
+}
+
+.status-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 120px;
+  justify-content: center;
+}
+
+.action-button.primary {
+  background-color: var(--action-color);
+  color: white;
+  border: 1px solid var(--action-color);
+}
+
+.action-button.primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.action-button.secondary {
+  background-color: transparent;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+}
+
+.action-button.secondary:hover {
+  background-color: #f8f9fa;
+  color: #495057;
+  border-color: #adb5bd;
+}
+
+.action-button i {
+  font-size: 1rem;
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes pulseRing {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@media (max-width: 768px) {
+  .voice-status-card {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .status-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .status-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .status-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 1.5rem;
+  }
+  
+  .pulse-ring {
+    top: -6px;
+    left: -6px;
+    width: 68px;
+    height: 68px;
+  }
+  
+  .status-features {
+    align-items: center;
+  }
+  
+  .status-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .action-button {
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .status-indicator {
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .status-text {
+    font-size: 0.75rem;
+  }
+  
+  .feature-item {
+    font-size: 0.8rem;
+  }
+}

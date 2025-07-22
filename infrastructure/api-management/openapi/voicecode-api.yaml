@@ -1,0 +1,474 @@
+openapi: 3.0.1
+info:
+  title: VoiceCode API
+  description: AI-powered voice assistant for software development
+  version: '1.0'
+  contact:
+    name: VoiceCode Support
+    email: support@voicecode.io
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://{apim-instance}.azure-api.net
+    description: Production API Gateway
+    variables:
+      apim-instance:
+        default: voicecode-prod-apim
+        description: API Management instance name
+  - url: https://{apim-instance}-dev.azure-api.net
+    description: Development API Gateway
+    variables:
+      apim-instance:
+        default: voicecode-dev-apim
+        description: API Management instance name
+
+security:
+  - oauth2: []
+  - apiKey: []
+
+tags:
+  - name: Speech
+    description: Speech-to-Text and Text-to-Speech operations
+  - name: AI
+    description: Claude AI and code generation operations
+  - name: Routing
+    description: Intent classification and routing
+  - name: Real-time
+    description: WebSocket and real-time operations
+
+paths:
+  /stt/transcribe:
+    post:
+      tags:
+        - Speech
+      summary: Transcribe audio to text
+      operationId: transcribeAudio
+      requestBody:
+        required: true
+        content:
+          audio/wav:
+            schema:
+              type: string
+              format: binary
+          audio/mp3:
+            schema:
+              type: string
+              format: binary
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                language:
+                  type: string
+                  default: en-US
+                format:
+                  type: string
+                  enum: [wav, mp3, ogg]
+      responses:
+        '200':
+          description: Transcription successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /claude/process:
+    post:
+      tags:
+        - AI
+      summary: Process request with Claude AI
+      operationId: processWithClaude
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClaudeRequest'
+      responses:
+        '200':
+          description: Processing successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaudeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /router/route:
+    post:
+      tags:
+        - Routing
+      summary: Route prompt based on intent
+      operationId: routePrompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoutingRequest'
+      responses:
+        '200':
+          description: Routing successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutingResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /generator/generate:
+    post:
+      tags:
+        - AI
+      summary: Generate code from specifications
+      operationId: generateCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeGenerationInput'
+      responses:
+        '200':
+          description: Generation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedFiles'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tts/synthesize:
+    post:
+      tags:
+        - Speech
+      summary: Synthesize text to speech
+      operationId: synthesizeSpeech
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SynthesisRequest'
+      responses:
+        '200':
+          description: Synthesis successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesisResult'
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dispatcher/negotiate:
+    post:
+      tags:
+        - Real-time
+      summary: Negotiate SignalR connection
+      operationId: negotiateConnection
+      responses:
+        '200':
+          description: Negotiation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NegotiationResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  schemas:
+    TranscriptionResult:
+      type: object
+      properties:
+        id:
+          type: string
+        transcript:
+          type: string
+        confidence:
+          type: number
+          format: float
+        language:
+          type: string
+        duration:
+          type: number
+        words:
+          type: array
+          items:
+            type: object
+            properties:
+              word:
+                type: string
+              start:
+                type: number
+              end:
+                type: number
+              confidence:
+                type: number
+
+    ClaudeRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+        systemPrompt:
+          type: string
+        context:
+          type: object
+        maxTokens:
+          type: integer
+          default: 4096
+        temperature:
+          type: number
+          default: 0.7
+
+    ClaudeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        codeBlocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodeBlock'
+        voiceResponse:
+          type: object
+          properties:
+            text:
+              type: string
+            emotion:
+              type: string
+        metadata:
+          type: object
+
+    RoutingRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+        context:
+          type: object
+        sessionId:
+          type: string
+
+    RoutingResult:
+      type: object
+      properties:
+        intent:
+          type: object
+          properties:
+            category:
+              type: string
+              enum: [Coding, Debugging, Explanation, Refactoring, Testing, Documentation, ProjectSetup, General, Unknown]
+            confidence:
+              type: number
+            action:
+              type: string
+        priority:
+          type: string
+          enum: [High, Normal, Low]
+        suggestedService:
+          type: string
+
+    CodeGenerationInput:
+      type: object
+      properties:
+        codeBlocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodeBlock'
+        targetDirectory:
+          type: string
+        options:
+          type: object
+
+    CodeBlock:
+      type: object
+      properties:
+        language:
+          type: string
+        content:
+          type: string
+        fileName:
+          type: string
+        startLine:
+          type: integer
+        endLine:
+          type: integer
+
+    GeneratedFiles:
+      type: object
+      properties:
+        id:
+          type: string
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              fileName:
+                type: string
+              filePath:
+                type: string
+              content:
+                type: string
+              size:
+                type: integer
+        errors:
+          type: array
+          items:
+            type: string
+
+    SynthesisRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+        voiceProfile:
+          type: string
+          enum: [default, friendly, professional, casual, minimalist]
+        emotion:
+          type: string
+        format:
+          type: string
+          default: mp3
+        storeAudio:
+          type: boolean
+          default: false
+
+    SynthesisResult:
+      type: object
+      properties:
+        id:
+          type: string
+        audioUrl:
+          type: string
+        audioData:
+          type: string
+          format: byte
+        format:
+          type: string
+        duration:
+          type: string
+        voiceUsed:
+          type: string
+
+    NegotiationResult:
+      type: object
+      properties:
+        url:
+          type: string
+        accessToken:
+          type: string
+        negotiateVersion:
+          type: integer
+        availableTransports:
+          type: array
+          items:
+            type: object
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        correlationId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying
+          schema:
+            type: integer
+    
+    PayloadTooLarge:
+      description: Payload too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    ServiceUnavailable:
+      description: Service unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/authorize
+          tokenUrl: https://login.microsoftonline.com/{tenant-id}/oauth2/v2.0/token
+          scopes:
+            api://voicecode/access_as_user: Access VoiceCode API as user
+    
+    apiKey:
+      type: apiKey
+      in: header
+      name: Ocp-Apim-Subscription-Key

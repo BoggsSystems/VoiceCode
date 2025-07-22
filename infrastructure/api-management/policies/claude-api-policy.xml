@@ -1,0 +1,78 @@
+<policies>
+    <inbound>
+        <base />
+        
+        <!-- Claude-specific rate limiting (lower due to external API costs) -->
+        <rate-limit-by-key calls="50" renewal-period="60" counter-key="@(context.Subscription?.Key ?? "anonymous")" />
+        
+        <!-- Token limit validation -->
+        <set-variable name="estimatedTokens" value="@{
+            var body = context.Request.Body?.As<JObject>(preserveContent: true);
+            var prompt = body?.GetValue("prompt")?.ToString() ?? "";
+            return prompt.Length / 4; // Rough token estimate
+        }" />
+        
+        <choose>
+            <when condition="@(context.Variables.GetValueOrDefault<int>("estimatedTokens", 0) > 100000)">
+                <return-response>
+                    <set-status code="400" reason="Bad Request" />
+                    <set-body>{"error": "token_limit_exceeded", "message": "Request exceeds maximum token limit"}</set-body>
+                </return-response>
+            </when>
+        </choose>
+        
+        <!-- Add service-specific headers -->
+        <set-header name="X-Service-Name" exists-action="override">
+            <value>Claude-Service</value>
+        </set-header>
+        
+        <!-- Request timeout for long-running Claude operations -->
+        <set-backend-service base-url="@(context.Api.ServiceUrl.ToString())" />
+    </inbound>
+    
+    <backend>
+        <base />
+        <!-- Extended timeout for Claude API calls -->
+        <forward-request timeout="120" />
+    </backend>
+    
+    <outbound>
+        <base />
+        
+        <!-- Add Claude-specific response headers -->
+        <set-header name="X-Claude-Model" exists-action="skip">
+            <value>@(context.Response.Headers.GetValueOrDefault("X-Claude-Model", ""))</value>
+        </set-header>
+        <set-header name="X-Token-Usage" exists-action="skip">
+            <value>@(context.Response.Headers.GetValueOrDefault("X-Token-Usage", ""))</value>
+        </set-header>
+        
+        <!-- Cache non-personalized responses -->
+        <cache-store duration="600" cache-response="true">
+            <vary-by-header>Accept</vary-by-header>
+            <vary-by-query-parameter>intent</vary-by-query-parameter>
+        </cache-store>
+    </outbound>
+    
+    <on-error>
+        <base />
+        
+        <!-- Handle Claude API specific errors -->
+        <choose>
+            <when condition="@(context.Response?.StatusCode == 503)">
+                <return-response>
+                    <set-status code="503" reason="Service Unavailable" />
+                    <set-body>@{
+                        return new JObject(
+                            new JProperty("error", "claude_unavailable"),
+                            new JProperty("message", "Claude API is temporarily unavailable"),
+                            new JProperty("retry_after", 30),
+                            new JProperty("correlationId", context.Variables.GetValueOrDefault<string>("correlationId", "")),
+                            new JProperty("timestamp", DateTime.UtcNow.ToString("o"))
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+    </on-error>
+</policies>

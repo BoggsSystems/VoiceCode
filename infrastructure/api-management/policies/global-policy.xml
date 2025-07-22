@@ -1,0 +1,155 @@
+<policies>
+    <inbound>
+        <!-- Extract correlation ID or create new one -->
+        <set-header name="X-Correlation-ID" exists-action="skip">
+            <value>@(Guid.NewGuid().ToString())</value>
+        </set-header>
+        
+        <!-- Add API version header -->
+        <set-header name="X-API-Version" exists-action="override">
+            <value>1.0</value>
+        </set-header>
+        
+        <!-- Rate limiting by subscription key -->
+        <rate-limit-by-key calls="1000" renewal-period="3600" counter-key="@(context.Subscription?.Key ?? "anonymous")" />
+        
+        <!-- Validate JWT token -->
+        <validate-jwt header-name="Authorization" failed-validation-httpcode="401" failed-validation-error-message="Unauthorized">
+            <openid-config url="https://login.microsoftonline.com/{tenant-id}/v2.0/.well-known/openid-configuration" />
+            <audiences>
+                <audience>api://{client-id}</audience>
+            </audiences>
+            <issuers>
+                <issuer>https://sts.windows.net/{tenant-id}/</issuer>
+            </issuers>
+        </validate-jwt>
+        
+        <!-- CORS -->
+        <cors allow-credentials="true">
+            <allowed-origins>
+                <origin>https://*.azurestaticapps.net</origin>
+                <origin>http://localhost:3000</origin>
+            </allowed-origins>
+            <allowed-methods preflight-result-max-age="300">
+                <method>GET</method>
+                <method>POST</method>
+                <method>PUT</method>
+                <method>DELETE</method>
+                <method>PATCH</method>
+                <method>OPTIONS</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>*</header>
+            </allowed-headers>
+            <expose-headers>
+                <header>X-Correlation-ID</header>
+                <header>X-RateLimit-Remaining</header>
+                <header>X-RateLimit-Reset</header>
+            </expose-headers>
+        </cors>
+        
+        <!-- IP filtering (optional) -->
+        <choose>
+            <when condition="@(context.Request.Headers.GetValueOrDefault("X-Forwarded-For", "").Contains("malicious-ip"))">
+                <return-response>
+                    <set-status code="403" reason="Forbidden" />
+                    <set-body>Access denied</set-body>
+                </return-response>
+            </when>
+        </choose>
+    </inbound>
+    
+    <backend>
+        <forward-request timeout="30" />
+    </backend>
+    
+    <outbound>
+        <!-- Add security headers -->
+        <set-header name="X-Content-Type-Options" exists-action="override">
+            <value>nosniff</value>
+        </set-header>
+        <set-header name="X-Frame-Options" exists-action="override">
+            <value>DENY</value>
+        </set-header>
+        <set-header name="X-XSS-Protection" exists-action="override">
+            <value>1; mode=block</value>
+        </set-header>
+        <set-header name="Strict-Transport-Security" exists-action="override">
+            <value>max-age=31536000; includeSubDomains</value>
+        </set-header>
+        <set-header name="Content-Security-Policy" exists-action="override">
+            <value>default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;</value>
+        </set-header>
+        
+        <!-- Add rate limit headers -->
+        <set-header name="X-RateLimit-Remaining" exists-action="override">
+            <value>@{
+                var remainingCalls = context.Variables.GetValueOrDefault<int>("remainingCallsPerKey", -1);
+                return remainingCalls.ToString();
+            }</value>
+        </set-header>
+        
+        <!-- Remove internal headers -->
+        <set-header name="X-AspNet-Version" exists-action="delete" />
+        <set-header name="X-Powered-By" exists-action="delete" />
+        
+        <!-- Add response time -->
+        <set-header name="X-Response-Time" exists-action="override">
+            <value>@((context.Elapsed.TotalMilliseconds).ToString("0") + "ms")</value>
+        </set-header>
+    </outbound>
+    
+    <on-error>
+        <set-header name="X-Correlation-ID" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault<string>("correlationId", Guid.NewGuid().ToString()))</value>
+        </set-header>
+        
+        <choose>
+            <when condition="@(context.LastError.Source == "validate-jwt")">
+                <return-response>
+                    <set-status code="401" reason="Unauthorized" />
+                    <set-header name="WWW-Authenticate" exists-action="override">
+                        <value>Bearer error="invalid_token"</value>
+                    </set-header>
+                    <set-body>@{
+                        return new JObject(
+                            new JProperty("error", "unauthorized"),
+                            new JProperty("message", "Invalid or expired token"),
+                            new JProperty("correlationId", context.Variables.GetValueOrDefault<string>("correlationId", "")),
+                            new JProperty("timestamp", DateTime.UtcNow.ToString("o"))
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+            <when condition="@(context.LastError.Source == "rate-limit-by-key")">
+                <return-response>
+                    <set-status code="429" reason="Too Many Requests" />
+                    <set-header name="Retry-After" exists-action="override">
+                        <value>3600</value>
+                    </set-header>
+                    <set-body>@{
+                        return new JObject(
+                            new JProperty("error", "rate_limit_exceeded"),
+                            new JProperty("message", "API rate limit exceeded"),
+                            new JProperty("correlationId", context.Variables.GetValueOrDefault<string>("correlationId", "")),
+                            new JProperty("timestamp", DateTime.UtcNow.ToString("o"))
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </when>
+            <otherwise>
+                <return-response>
+                    <set-status code="500" reason="Internal Server Error" />
+                    <set-body>@{
+                        return new JObject(
+                            new JProperty("error", "internal_error"),
+                            new JProperty("message", "An unexpected error occurred"),
+                            new JProperty("correlationId", context.Variables.GetValueOrDefault<string>("correlationId", "")),
+                            new JProperty("timestamp", DateTime.UtcNow.ToString("o"))
+                        ).ToString();
+                    }</set-body>
+                </return-response>
+            </otherwise>
+        </choose>
+    </on-error>
+</policies>

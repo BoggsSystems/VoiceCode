@@ -1,0 +1,108 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    # Dependency vulnerability scanning
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+    
+    - name: Upload Trivy scan results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    # .NET specific security scanning
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Install security tools
+      run: |
+        dotnet tool install --global security-scan
+        dotnet tool install --global dotnet-outdated-tool
+    
+    - name: Check for outdated packages
+      run: |
+        dotnet restore VoiceCode.sln
+        dotnet outdated --fail-on-updates
+    
+    - name: Security Code Scan
+      run: security-scan VoiceCode.sln --export=security-scan-results.sarif
+    
+    - name: Upload Security Scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'security-scan-results.sarif'
+    
+    # Docker image scanning
+    - name: Scan Docker images
+      run: |
+        for service in stt-service claude-service router-service generator-service tts-service dispatcher-service; do
+          echo "Scanning $service..."
+          docker build -f services/$service/Dockerfile -t voicecode-$service:scan .
+          trivy image --severity HIGH,CRITICAL voicecode-$service:scan
+        done
+    
+    # Infrastructure security scanning
+    - name: Terraform security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'config'
+        scan-ref: 'infrastructure/terraform'
+        format: 'sarif'
+        output: 'terraform-security.sarif'
+    
+    - name: Upload Terraform scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'terraform-security.sarif'
+    
+    # Secret scanning
+    - name: Scan for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+    
+    # Generate security report
+    - name: Generate security report
+      if: always()
+      run: |
+        echo "# Security Scan Report" > security-report.md
+        echo "Date: $(date)" >> security-report.md
+        echo "" >> security-report.md
+        
+        echo "## Summary" >> security-report.md
+        echo "- Dependency vulnerabilities scanned with Trivy" >> security-report.md
+        echo "- .NET packages checked for updates" >> security-report.md
+        echo "- Code security scan completed" >> security-report.md
+        echo "- Docker images scanned" >> security-report.md
+        echo "- Infrastructure configuration scanned" >> security-report.md
+        echo "- Secret detection completed" >> security-report.md
+    
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-report
+        path: |
+          security-report.md
+          *.sarif

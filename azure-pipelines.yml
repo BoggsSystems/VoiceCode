@@ -1,0 +1,246 @@
+# Azure DevOps Pipeline for VoiceCode
+# This pipeline builds, tests, and deploys the VoiceCode services
+
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+  paths:
+    exclude:
+    - docs/*
+    - README.md
+
+pr:
+  branches:
+    include:
+    - main
+
+variables:
+  - group: voicecode-variables
+  - name: buildConfiguration
+    value: 'Release'
+  - name: dotnetVersion
+    value: '8.0.x'
+  - name: dockerRegistryServiceConnection
+    value: 'voicecode-acr'
+  - name: containerRegistry
+    value: 'voicecodeprodacr.azurecr.io'
+  - name: resourceGroup
+    value: 'voicecode-$(environment)-rg'
+
+stages:
+- stage: Build
+  displayName: 'Build and Test'
+  jobs:
+  - job: BuildAndTest
+    displayName: 'Build and Test Services'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET SDK'
+      inputs:
+        version: $(dotnetVersion)
+        performMultiLevelLookup: true
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore packages'
+      inputs:
+        command: 'restore'
+        projects: 'VoiceCode.sln'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build solution'
+      inputs:
+        command: 'build'
+        projects: 'VoiceCode.sln'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Run tests'
+      inputs:
+        command: 'test'
+        projects: 'VoiceCode.sln'
+        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'
+        publishTestResults: true
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Agent.TempDirectory)/**/coverage.cobertura.xml'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish artifacts'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: 'services/*/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+        zipAfterPublish: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish build artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+
+- stage: BuildContainers
+  displayName: 'Build Docker Images'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - job: BuildDockerImages
+    displayName: 'Build and Push Docker Images'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      matrix:
+        stt-service:
+          serviceName: 'stt-service'
+        claude-service:
+          serviceName: 'claude-service'
+        router-service:
+          serviceName: 'router-service'
+        generator-service:
+          serviceName: 'generator-service'
+        tts-service:
+          serviceName: 'tts-service'
+        dispatcher-service:
+          serviceName: 'dispatcher-service'
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push $(serviceName)'
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: 'voicecode-$(serviceName)'
+        command: 'buildAndPush'
+        Dockerfile: 'services/$(serviceName)/Dockerfile'
+        buildContext: '.'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+- stage: DeployDev
+  displayName: 'Deploy to Development'
+  dependsOn: BuildContainers
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  variables:
+    environment: 'dev'
+  jobs:
+  - deployment: DeployToDev
+    displayName: 'Deploy to Dev Environment'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: 'voicecode-dev'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy STT Service'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              appName: 'voicecode-dev-app-stt'
+              containers: '$(containerRegistry)/voicecode-stt-service:$(Build.BuildId)'
+
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy Claude Service'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              appName: 'voicecode-dev-app-claude'
+              containers: '$(containerRegistry)/voicecode-claude-service:$(Build.BuildId)'
+
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy Router Service'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              appName: 'voicecode-dev-app-router'
+              containers: '$(containerRegistry)/voicecode-router-service:$(Build.BuildId)'
+
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy Generator Service'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              appName: 'voicecode-dev-app-generator'
+              containers: '$(containerRegistry)/voicecode-generator-service:$(Build.BuildId)'
+
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy TTS Service'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              appName: 'voicecode-dev-app-tts'
+              containers: '$(containerRegistry)/voicecode-tts-service:$(Build.BuildId)'
+
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy Dispatcher Service'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              appName: 'voicecode-dev-app-dispatcher'
+              containers: '$(containerRegistry)/voicecode-dispatcher-service:$(Build.BuildId)'
+
+- stage: IntegrationTests
+  displayName: 'Run Integration Tests'
+  dependsOn: DeployDev
+  jobs:
+  - job: RunIntegrationTests
+    displayName: 'Integration Tests'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UseDotNet@2
+      inputs:
+        version: $(dotnetVersion)
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Run integration tests'
+      inputs:
+        command: 'test'
+        projects: 'tests/VoiceCode.IntegrationTests/*.csproj'
+        arguments: '--configuration Release'
+      env:
+        API_URL: 'https://voicecode-dev-apim.azure-api.net'
+        TEST_SUBSCRIPTION_KEY: $(testSubscriptionKey)
+
+- stage: DeployProd
+  displayName: 'Deploy to Production'
+  dependsOn: IntegrationTests
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  variables:
+    environment: 'prod'
+  jobs:
+  - deployment: DeployToProd
+    displayName: 'Deploy to Production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: 'voicecode-prod'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureAppServiceManage@0
+            displayName: 'Swap staging slot'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              action: 'Swap Slots'
+              webAppName: 'voicecode-prod-app-stt'
+              sourceSlot: 'staging'
+              targetSlot: 'production'
+
+          # Repeat for all services...
+
+          - task: AzureCLI@2
+            displayName: 'Update API Management'
+            inputs:
+              azureSubscription: 'voicecode-azure-subscription'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az apim api import \
+                  --path "v1" \
+                  --api-id "voicecode-api-v1" \
+                  --resource-group "$(resourceGroup)" \
+                  --service-name "voicecode-prod-apim" \
+                  --specification-path "$(Build.SourcesDirectory)/infrastructure/api-management/openapi/voicecode-api.yaml" \
+                  --specification-format "OpenApiJson"

@@ -1,0 +1,51 @@
+<policies>
+    <inbound>
+        <base />
+        
+        <!-- WebSocket support for SignalR -->
+        <set-header name="X-Service-Name" exists-action="override">
+            <value>Dispatcher-Service</value>
+        </set-header>
+        
+        <!-- Allow WebSocket upgrade -->
+        <choose>
+            <when condition="@(context.Request.Headers.GetValueOrDefault("Upgrade", "") == "websocket")">
+                <set-header name="X-WebSocket-Request" exists-action="override">
+                    <value>true</value>
+                </set-header>
+            </when>
+        </choose>
+        
+        <!-- SignalR negotiation endpoint caching -->
+        <cache-lookup vary-by-developer="false" vary-by-developer-groups="false">
+            <vary-by-header>Accept</vary-by-header>
+            <vary-by-header>Authorization</vary-by-header>
+        </cache-lookup>
+    </inbound>
+    
+    <backend>
+        <base />
+        <!-- Extended timeout for long-polling connections -->
+        <forward-request timeout="300" />
+    </backend>
+    
+    <outbound>
+        <base />
+        
+        <!-- Cache SignalR negotiation responses -->
+        <choose>
+            <when condition="@(context.Request.Url.Path.Contains("/negotiate"))">
+                <cache-store duration="60" />
+            </when>
+        </choose>
+        
+        <!-- Add connection-specific headers -->
+        <set-header name="X-SignalR-Version" exists-action="skip">
+            <value>@(context.Response.Headers.GetValueOrDefault("X-SignalR-Version", ""))</value>
+        </set-header>
+    </outbound>
+    
+    <on-error>
+        <base />
+    </on-error>
+</policies>

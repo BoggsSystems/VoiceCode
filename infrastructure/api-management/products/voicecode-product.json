@@ -1,0 +1,100 @@
+{
+  "name": "VoiceCode API",
+  "description": "Complete access to VoiceCode AI-powered voice assistant services",
+  "terms": "By subscribing to this product, you agree to the VoiceCode API terms of service",
+  "subscriptionRequired": true,
+  "approvalRequired": true,
+  "subscriptionsLimit": 5,
+  "state": "published",
+  "groups": [
+    {
+      "name": "developers",
+      "description": "External developers building applications with VoiceCode"
+    },
+    {
+      "name": "internal",
+      "description": "Internal applications and services"
+    }
+  ],
+  "apis": [
+    {
+      "name": "stt-api",
+      "displayName": "Speech-to-Text API",
+      "description": "Convert audio to text with Azure Speech Services",
+      "path": "/stt",
+      "protocols": ["https"],
+      "authenticationRequired": true
+    },
+    {
+      "name": "claude-api",
+      "displayName": "Claude AI API",
+      "description": "AI-powered code generation and assistance",
+      "path": "/claude",
+      "protocols": ["https"],
+      "authenticationRequired": true
+    },
+    {
+      "name": "router-api",
+      "displayName": "Prompt Router API",
+      "description": "Intent classification and routing",
+      "path": "/router",
+      "protocols": ["https"],
+      "authenticationRequired": true
+    },
+    {
+      "name": "generator-api",
+      "displayName": "Code Generator API",
+      "description": "Multi-language code generation service",
+      "path": "/generator",
+      "protocols": ["https"],
+      "authenticationRequired": true
+    },
+    {
+      "name": "tts-api",
+      "displayName": "Text-to-Speech API",
+      "description": "Convert text to natural speech with personality",
+      "path": "/tts",
+      "protocols": ["https"],
+      "authenticationRequired": true
+    },
+    {
+      "name": "dispatcher-api",
+      "displayName": "Real-time Dispatcher API",
+      "description": "WebSocket/SignalR real-time communication",
+      "path": "/dispatcher",
+      "protocols": ["https", "wss"],
+      "authenticationRequired": true
+    }
+  ],
+  "quotas": {
+    "period": "month",
+    "limit": 100000,
+    "renewalPeriod": 2592000
+  },
+  "rateLimits": [
+    {
+      "api": "*",
+      "operations": "*",
+      "limit": 1000,
+      "period": 3600
+    },
+    {
+      "api": "stt-api",
+      "operations": ["transcribe"],
+      "limit": 100,
+      "period": 60
+    },
+    {
+      "api": "claude-api",
+      "operations": ["process", "generate"],
+      "limit": 50,
+      "period": 60
+    },
+    {
+      "api": "tts-api",
+      "operations": ["synthesize"],
+      "limit": 200,
+      "period": 60
+    }
+  ]
+}

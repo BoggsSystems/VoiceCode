@@ -1,0 +1,110 @@
+{
+  "subscriptionTiers": [
+    {
+      "name": "Developer",
+      "displayName": "Developer Tier",
+      "description": "For development and testing",
+      "limits": {
+        "callsPerMinute": 100,
+        "callsPerDay": 10000,
+        "concurrentCalls": 10,
+        "audioMinutesPerDay": 60,
+        "claudeRequestsPerDay": 100
+      },
+      "features": [
+        "Access to all APIs",
+        "Basic support",
+        "Development environment only",
+        "Standard SLA (99.5%)"
+      ],
+      "price": {
+        "monthly": 0,
+        "currency": "USD"
+      }
+    },
+    {
+      "name": "Starter",
+      "displayName": "Starter Tier",
+      "description": "For small teams and projects",
+      "limits": {
+        "callsPerMinute": 500,
+        "callsPerDay": 50000,
+        "concurrentCalls": 25,
+        "audioMinutesPerDay": 300,
+        "claudeRequestsPerDay": 500
+      },
+      "features": [
+        "Access to all APIs",
+        "Email support",
+        "Production environment",
+        "Standard SLA (99.5%)",
+        "Basic analytics"
+      ],
+      "price": {
+        "monthly": 99,
+        "currency": "USD"
+      }
+    },
+    {
+      "name": "Professional",
+      "displayName": "Professional Tier",
+      "description": "For growing teams",
+      "limits": {
+        "callsPerMinute": 2000,
+        "callsPerDay": 200000,
+        "concurrentCalls": 100,
+        "audioMinutesPerDay": 1200,
+        "claudeRequestsPerDay": 2000
+      },
+      "features": [
+        "Access to all APIs",
+        "Priority email support",
+        "Production environment",
+        "Enhanced SLA (99.9%)",
+        "Advanced analytics",
+        "Custom voice profiles",
+        "Webhook notifications"
+      ],
+      "price": {
+        "monthly": 499,
+        "currency": "USD"
+      }
+    },
+    {
+      "name": "Enterprise",
+      "displayName": "Enterprise Tier",
+      "description": "For large organizations",
+      "limits": {
+        "callsPerMinute": 10000,
+        "callsPerDay": 1000000,
+        "concurrentCalls": 500,
+        "audioMinutesPerDay": 6000,
+        "claudeRequestsPerDay": 10000
+      },
+      "features": [
+        "Access to all APIs",
+        "24/7 phone and email support",
+        "Production environment",
+        "Premium SLA (99.95%)",
+        "Advanced analytics and reporting",
+        "Custom voice profiles",
+        "Webhook notifications",
+        "Dedicated account manager",
+        "Custom integration support",
+        "On-premise deployment option"
+      ],
+      "price": {
+        "monthly": "Custom",
+        "currency": "USD"
+      }
+    }
+  ],
+  "overage": {
+    "pricing": {
+      "additionalCalls": 0.001,
+      "additionalAudioMinute": 0.10,
+      "additionalClaudeRequest": 0.50
+    },
+    "description": "Overage charges apply when limits are exceeded"
+  }
+}

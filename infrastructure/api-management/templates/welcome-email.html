@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to VoiceCode API</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #0078d4;
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .content {
+            background-color: #ffffff;
+            padding: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 0 0 8px 8px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #0078d4;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .feature-list {
+            margin: 20px 0;
+        }
+        .feature-list li {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Welcome to VoiceCode API!</h1>
+        <p>Your AI-powered voice assistant for software development</p>
+    </div>
+    
+    <div class="content">
+        <p>Hi {{FirstName}},</p>
+        
+        <p>Thank you for subscribing to the VoiceCode API! Your subscription to the <strong>{{ProductName}}</strong> has been activated.</p>
+        
+        <h2>Getting Started</h2>
+        <p>Here's what you need to know to start using VoiceCode:</p>
+        
+        <h3>Your Subscription Details</h3>
+        <ul>
+            <li><strong>Subscription Key:</strong> <code>{{SubscriptionKey}}</code></li>
+            <li><strong>Product:</strong> {{ProductName}}</li>
+            <li><strong>Status:</strong> Active</li>
+        </ul>
+        
+        <h3>Available APIs</h3>
+        <ul class="feature-list">
+            <li><strong>Speech-to-Text (STT):</strong> Convert voice commands to text</li>
+            <li><strong>Claude AI Integration:</strong> AI-powered code generation and assistance</li>
+            <li><strong>Prompt Router:</strong> Intelligent intent classification</li>
+            <li><strong>Code Generator:</strong> Multi-language code generation</li>
+            <li><strong>Text-to-Speech (TTS):</strong> Natural voice synthesis with personality</li>
+            <li><strong>Real-time Dispatcher:</strong> WebSocket/SignalR communication</li>
+        </ul>
+        
+        <h3>Quick Start</h3>
+        <p>To make your first API call, use the following header in your requests:</p>
+        <code>Ocp-Apim-Subscription-Key: {{SubscriptionKey}}</code>
+        
+        <p>Example request:</p>
+        <pre style="background-color: #f4f4f4; padding: 15px; border-radius: 4px; overflow-x: auto;">
+curl -X POST https://{{ApiEndpoint}}/v1/stt/transcribe \
+  -H "Ocp-Apim-Subscription-Key: {{SubscriptionKey}}" \
+  -H "Content-Type: audio/wav" \
+  --data-binary @audio.wav
+        </pre>
+        
+        <a href="{{DeveloperPortalUrl}}" class="button">Visit Developer Portal</a>
+        
+        <h3>Resources</h3>
+        <ul>
+            <li><a href="{{DeveloperPortalUrl}}/apis">API Documentation</a></li>
+            <li><a href="{{DeveloperPortalUrl}}/applications">Manage Applications</a></li>
+            <li><a href="{{DeveloperPortalUrl}}/products">View Products</a></li>
+            <li><a href="{{DeveloperPortalUrl}}/issues">Support</a></li>
+        </ul>
+        
+        <h3>Rate Limits</h3>
+        <p>Your subscription includes the following limits:</p>
+        <ul>
+            <li>{{RateLimit}} requests per hour</li>
+            <li>{{QuotaLimit}} requests per month</li>
+        </ul>
+        
+        <h3>Need Help?</h3>
+        <p>If you have any questions or need assistance:</p>
+        <ul>
+            <li>Check our <a href="{{DeveloperPortalUrl}}/wiki">documentation</a></li>
+            <li>Visit the <a href="{{DeveloperPortalUrl}}/forum">developer forum</a></li>
+            <li>Contact support at <a href="mailto:support@voicecode.io">support@voicecode.io</a></li>
+        </ul>
+    </div>
+    
+    <div class="footer">
+        <p>This email was sent to {{Email}} because you subscribed to VoiceCode API.</p>
+        <p>&copy; 2024 VoiceCode. All rights reserved.</p>
+        <p><a href="{{DeveloperPortalUrl}}/profile">Manage Preferences</a> | <a href="{{DeveloperPortalUrl}}/privacy">Privacy Policy</a></p>
+    </div>
+</body>
+</html>
