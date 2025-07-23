@@ -54,16 +54,21 @@ export const voiceCodeApiScopes = {
   scopes: [`api://${process.env.REACT_APP_CLIENT_ID}/access_as_user`],
 };
 
-// API endpoints
+// API endpoints for VoiceCode services
 export const apiConfig = {
-  baseUrl: process.env.REACT_APP_API_URL || 'https://localhost:7000',
-  signalrUrl: process.env.REACT_APP_SIGNALR_URL || 'https://localhost:7006',
-  endpoints: {
-    stt: '/v1/stt',
-    claude: '/v1/claude',
-    router: '/v1/router',
-    generator: '/v1/generator',
-    tts: '/v1/tts',
-    dispatcher: '/v1/dispatcher',
+  baseUrl: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000',
+  services: {
+    router: process.env.REACT_APP_ROUTER_SERVICE_URL || 'http://localhost:5001',
+    dispatcher: process.env.REACT_APP_DISPATCHER_SERVICE_URL || 'http://localhost:5002',
+    claude: process.env.REACT_APP_CLAUDE_SERVICE_URL || 'http://localhost:5003',
+    stt: process.env.REACT_APP_STT_SERVICE_URL || 'http://localhost:5004',
+    tts: process.env.REACT_APP_TTS_SERVICE_URL || 'http://localhost:5005',
+    generator: process.env.REACT_APP_GENERATOR_SERVICE_URL || 'http://localhost:5006',
+  },
+  signalr: {
+    hubUrl: process.env.REACT_APP_SIGNALR_HUB_URL || 'http://localhost:5002/hubs/voice',
+  },
+  websocket: {
+    url: process.env.REACT_APP_WS_URL || 'ws://localhost:5002/ws',
   },
 };
