@@ -53,6 +53,7 @@ coverage/
 **/*.tfstate.*
 **/*.tfvars
 !**/*.tfvars.example
+infrastructure/
 
 # Documentation
 docs/

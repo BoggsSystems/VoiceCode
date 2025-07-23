@@ -32,26 +32,25 @@ resource "azurerm_linux_web_app" "services" {
   
   site_config {
     always_on        = true
-    linux_fx_version = "DOTNETCORE|8.0"
     
     health_check_path = "/health"
     
     app_command_line = ""
     
+    application_stack {
+      dotnet_version = "8.0"
+    }
+    
     cors {
       allowed_origins = var.domain_name != "" ? [
         "https://${var.domain_name}",
-        "https://${azurerm_static_web_app.main.default_hostname}",
+        "https://placeholder-frontend.example.com",
         "http://localhost:3000"
       ] : [
-        "https://${azurerm_static_web_app.main.default_hostname}",
+        "https://placeholder-frontend.example.com",
         "http://localhost:3000"
       ]
       support_credentials = true
-    }
-    
-    application_stack {
-      dotnet_version = "8.0"
     }
   }
   
@@ -99,17 +98,13 @@ resource "azurerm_linux_web_app_slot" "staging" {
     cors {
       allowed_origins = var.domain_name != "" ? [
         "https://${var.domain_name}",
-        "https://${azurerm_static_web_app.main.default_hostname}",
+        "https://placeholder-frontend.example.com",
         "http://localhost:3000"
       ] : [
-        "https://${azurerm_static_web_app.main.default_hostname}",
+        "https://placeholder-frontend.example.com",
         "http://localhost:3000"
       ]
       support_credentials = true
-    }
-    
-    application_stack {
-      dotnet_version = "8.0"
     }
   }
   
@@ -205,7 +200,7 @@ resource "azurerm_monitor_autoscale_setting" "app_service" {
   notification {
     email {
       send_to_subscription_administrator    = true
-      send_to_subscription_co_administrators = true
+      send_to_subscription_co_administrator = true
       custom_emails                          = [var.admin_email]
     }
   }

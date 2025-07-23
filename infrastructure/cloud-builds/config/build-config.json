@@ -1,0 +1,112 @@
+{
+  "max_concurrent_builds": 10,
+  "default_timeout_minutes": 30,
+  "max_timeout_minutes": 60,
+  "allowed_source_types": [
+    "git",
+    "zip",
+    "tar"
+  ],
+  "allowed_project_types": [
+    "dotnet",
+    "nodejs",
+    "python",
+    "java",
+    "rust",
+    "go"
+  ],
+  "security_scan_enabled": true,
+  "artifact_retention_days": 7,
+  "resource_limits": {
+    "max_cpu_cores": 4,
+    "max_memory_gb": 8,
+    "max_disk_gb": 20,
+    "max_files": 50000,
+    "max_project_size_mb": 500
+  },
+  "build_environments": {
+    "dotnet": {
+      "image": "voicecode-build-dotnet:latest",
+      "supported_versions": [
+        ".NET 8.0",
+        ".NET 7.0",
+        ".NET 6.0"
+      ],
+      "default_config": "Release"
+    },
+    "nodejs": {
+      "image": "voicecode-build-nodejs:latest",
+      "supported_versions": [
+        "Node.js 20 LTS",
+        "Node.js 18 LTS",
+        "Node.js 16 LTS"
+      ],
+      "default_config": "production"
+    },
+    "python": {
+      "image": "voicecode-build-python:latest",
+      "supported_versions": [
+        "Python 3.11",
+        "Python 3.10",
+        "Python 3.9"
+      ],
+      "default_config": "release"
+    },
+    "java": {
+      "image": "voicecode-build-java:latest",
+      "supported_versions": [
+        "OpenJDK 21",
+        "OpenJDK 17",
+        "OpenJDK 11"
+      ],
+      "default_config": "release"
+    },
+    "rust": {
+      "image": "voicecode-build-rust:latest",
+      "supported_versions": [
+        "Rust 1.75",
+        "Rust 1.74"
+      ],
+      "default_config": "release"
+    },
+    "go": {
+      "image": "voicecode-build-go:latest",
+      "supported_versions": [
+        "Go 1.21",
+        "Go 1.20"
+      ],
+      "default_config": "release"
+    }
+  },
+  "security_policies": {
+    "scan_for_secrets": true,
+    "scan_for_vulnerabilities": true,
+    "allowed_domains": [
+      "github.com",
+      "gitlab.com",
+      "bitbucket.org",
+      "azure.com"
+    ],
+    "blocked_patterns": [
+      "rm -rf /",
+      "eval(",
+      "exec(",
+      "system(",
+      "shell_exec("
+    ],
+    "max_external_requests": 10,
+    "network_isolation": true
+  },
+  "notifications": {
+    "webhook_url": null,
+    "slack_webhook": null,
+    "email_notifications": false,
+    "signalr_enabled": true
+  },
+  "monitoring": {
+    "telemetry_enabled": true,
+    "performance_metrics": true,
+    "audit_logging": true,
+    "retention_days": 90
+  }
+}

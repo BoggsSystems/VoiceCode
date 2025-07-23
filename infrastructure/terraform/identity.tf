@@ -62,10 +62,10 @@ resource "azuread_application" "webapp" {
   single_page_application {
     redirect_uris = var.domain_name != "" ? [
       "https://${var.domain_name}/authentication/login-callback",
-      "https://${azurerm_static_web_app.main.default_hostname}/authentication/login-callback",
+      "https://placeholder-frontend.example.com/authentication/login-callback",
       "http://localhost:3000/authentication/login-callback"
     ] : [
-      "https://${azurerm_static_web_app.main.default_hostname}/authentication/login-callback",
+      "https://placeholder-frontend.example.com/authentication/login-callback",
       "http://localhost:3000/authentication/login-callback"
     ]
   }

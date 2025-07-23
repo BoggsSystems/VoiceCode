@@ -2,41 +2,79 @@ using VoiceCode.Common.Enums;
 
 namespace VoiceCode.Common.Models;
 
-public class ProcessingRequest
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString();
-    public string UserId { get; set; } = string.Empty;
-    public string SessionId { get; set; } = string.Empty;
-    public ProcessingType Type { get; set; }
-    public object? Payload { get; set; }
-    public ProcessingPriority Priority { get; set; } = ProcessingPriority.Normal;
-    public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
-    public Dictionary<string, string> Metadata { get; set; } = new();
-}
-
 public class ProcessingResult
 {
-    public string Id { get; set; } = string.Empty;
+    public string Id { get; set; } = Guid.NewGuid().ToString();
     public string RequestId { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public string SessionId { get; set; } = string.Empty;
     public ProcessingStatus Status { get; set; }
-    public string Summary { get; set; } = string.Empty;
     public object? Result { get; set; }
-    public string AudioUrl { get; set; } = string.Empty;
-    public List<FileChange> Files { get; set; } = new();
-    public string TargetRepository { get; set; } = string.Empty;
-    public string CommitMessage { get; set; } = string.Empty;
-    public bool RequiresLocalExecution { get; set; }
-    public bool SendNotification { get; set; }
-    public DateTime ProcessedAt { get; set; }
-    public ProcessingMetrics Metrics { get; set; } = new();
+    public string? Error { get; set; }
+    public DateTime StartedAt { get; set; }
+    public DateTime CompletedAt { get; set; }
+    public Dictionary<string, object> Metadata { get; set; } = new();
+    public List<ProcessingStep> Steps { get; set; } = new();
 }
 
-public class ProcessingMetrics
+public class ProcessingStep
 {
-    public long ProcessingTimeMs { get; set; }
-    public int TokensUsed { get; set; }
-    public double EstimatedCost { get; set; }
-    public Dictionary<string, long> StepDurations { get; set; } = new();
+    public string Name { get; set; } = string.Empty;
+    public ProcessingStatus Status { get; set; }
+    public DateTime StartedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public string? Error { get; set; }
+    public Dictionary<string, object> Data { get; set; } = new();
 }
+
+public class DispatchResult
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ProcessingResultId { get; set; } = string.Empty;
+    public List<DispatchTarget> Targets { get; set; } = new();
+    public DispatchStatus Status { get; set; }
+    public DateTime DispatchedAt { get; set; }
+    public Dictionary<string, object> Metadata { get; set; } = new();
+}
+
+public class DispatchTarget
+{
+    public string Type { get; set; } = string.Empty; // "websocket", "webhook", "storage", etc.
+    public string Destination { get; set; } = string.Empty;
+    public DispatchStatus Status { get; set; }
+    public string? Error { get; set; }
+    public DateTime? DeliveredAt { get; set; }
+    public int RetryCount { get; set; }
+}
+
+public enum DispatchStatus
+{
+    Pending,
+    Sent,
+    Delivered,
+    Failed,
+    Retrying
+}
+
+public class UserSession
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string UserId { get; set; } = string.Empty;
+    public string SessionToken { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime LastActivityAt { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public SessionState State { get; set; }
+    public Dictionary<string, object> Data { get; set; } = new();
+    public List<string> ActiveConnections { get; set; } = new();
+}
+
+public enum SessionState
+{
+    Active,
+    Idle,
+    Suspended,
+    Expired,
+    Terminated
+}
+

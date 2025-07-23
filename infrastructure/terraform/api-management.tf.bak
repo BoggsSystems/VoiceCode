@@ -30,7 +30,7 @@ resource "azurerm_api_management_api" "services" {
   
   import {
     content_format = "openapi+json-link"
-    content_value  = "https://${azurerm_linux_web_app.services[each.key].default_hostname}/swagger/v1/swagger.json"
+    content_value  = "https://${azurerm_linux_web_app.services[each.key].default_host_name}/swagger/v1/swagger.json"
   }
 }
 
@@ -42,13 +42,13 @@ resource "azurerm_api_management_backend" "services" {
   resource_group_name = azurerm_resource_group.main.name
   api_management_name = azurerm_api_management.main.name
   protocol            = "http"
-  url                 = "https://${azurerm_linux_web_app.services[each.key].default_hostname}"
+  url                 = "https://${azurerm_linux_web_app.services[each.key].default_host_name}"
   
-  credentials {
-    header = {
-      "X-Functions-Key" = azurerm_linux_web_app.services[each.key].host_keys[0].default_function_key
-    }
-  }
+  # credentials {
+  #   header = {
+  #     "X-Functions-Key" = azurerm_linux_web_app.services[each.key].host_keys[0].default_function_key
+  #   }
+  # }
 }
 
 # API Management Products
@@ -90,7 +90,7 @@ resource "azurerm_api_management_api_policy" "services" {
     <rate-limit calls="100" renewal-period="60" />
     <cors allow-credentials="true">
       <allowed-origins>
-        <origin>${var.domain_name != "" ? "https://${var.domain_name}" : "https://${azurerm_static_web_app.main.default_hostname}"}</origin>
+        <origin>${var.domain_name != "" ? "https://${var.domain_name}" : "https://placeholder-frontend.example.com"}</origin>
         <origin>http://localhost:3000</origin>
       </allowed-origins>
       <allowed-methods>

@@ -12,7 +12,7 @@ public class AzureSpeechOptions
 
 public class VoiceOptions
 {
-    public Dictionary<string, VoiceProfile> Profiles { get; set; } = new();
+    public Dictionary<string, ConfigVoiceProfile> Profiles { get; set; } = new();
     public string DefaultVoice { get; set; } = "en-US-JennyNeural";
     public string DefaultLanguage { get; set; } = "en-US";
     public AudioOutputFormat DefaultFormat { get; set; } = AudioOutputFormat.Audio16Khz32KBitRateMonoMp3;
@@ -21,7 +21,7 @@ public class VoiceOptions
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(24);
 }
 
-public class VoiceProfile
+public class ConfigVoiceProfile
 {
     public string Name { get; set; } = string.Empty;
     public string Voice { get; set; } = string.Empty;

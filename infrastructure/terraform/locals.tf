@@ -78,7 +78,7 @@ locals {
     "ConnectionStrings__CosmosDb"                   = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.main.name};SecretName=CosmosDbConnectionString)"
     "AzureAd__TenantId"                            = data.azurerm_client_config.current.tenant_id
     "AzureAd__Instance"                            = "https://login.microsoftonline.com/"
-    "Cors__AllowedOrigins__0"                      = var.domain_name != "" ? "https://${var.domain_name}" : "https://${azurerm_static_web_app.main.default_hostname}"
+    "Cors__AllowedOrigins__0"                      = var.domain_name != "" ? "https://${var.domain_name}" : "https://placeholder-frontend.example.com"
     "Cors__AllowedOrigins__1"                      = "http://localhost:3000"
   }
   

@@ -1,4 +1,6 @@
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
+using Models = VoiceCode.Common.Models;
 
 namespace VoiceCode.TTSService.Services.Interfaces;
 
@@ -26,7 +28,7 @@ public interface IVoicePersonalityService
 
 public interface ISSMLBuilder
 {
-    Task<string> BuildAsync(string text, VoiceProfile profile, string? emotion = null);
+    Task<string> BuildAsync(string text, VoiceCode.Common.Models.VoiceProfile profile, string? emotion = null);
     string AddEmphasis(string text, string level = "moderate");
     string AddPause(string duration = "500ms");
     string AddProsody(string text, string rate = "1.0", string pitch = "0%", string volume = "100");

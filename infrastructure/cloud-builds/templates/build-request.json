@@ -1,0 +1,218 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VoiceCode Build Request",
+  "type": "object",
+  "required": [
+    "source_url",
+    "user_id"
+  ],
+  "properties": {
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "description": "URL to the source code repository or archive",
+      "examples": [
+        "https://github.com/user/repository.git",
+        "https://example.com/project.zip"
+      ]
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "git",
+        "zip",
+        "tar"
+      ],
+      "default": "git",
+      "description": "Type of source code location"
+    },
+    "project_type": {
+      "type": "string",
+      "enum": [
+        "auto-detect",
+        "dotnet",
+        "nodejs",
+        "python",
+        "java",
+        "rust",
+        "go"
+      ],
+      "default": "auto-detect",
+      "description": "Type of project to build"
+    },
+    "build_config": {
+      "type": "string",
+      "enum": [
+        "Debug",
+        "Release",
+        "Development",
+        "Production"
+      ],
+      "default": "Release",
+      "description": "Build configuration"
+    },
+    "build_timeout": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 60,
+      "default": 30,
+      "description": "Build timeout in minutes"
+    },
+    "user_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique identifier for the user requesting the build"
+    },
+    "project_name": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Optional project name for tracking"
+    },
+    "environment_variables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 10,
+      "description": "Environment variables for the build (max 10)"
+    },
+    "build_arguments": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Specific version to use for build tools"
+        },
+        "target_framework": {
+          "type": "string",
+          "description": "Target framework for .NET projects"
+        },
+        "node_version": {
+          "type": "string",
+          "description": "Node.js version for JavaScript projects"
+        },
+        "python_version": {
+          "type": "string",
+          "description": "Python version for Python projects"
+        },
+        "java_version": {
+          "type": "string",
+          "description": "Java version for Java projects"
+        },
+        "custom_commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "description": "Custom build commands (max 5)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notification_settings": {
+      "type": "object",
+      "properties": {
+        "webhook_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Webhook URL for build completion notifications"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address for notifications"
+        },
+        "include_logs": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include build logs in notifications"
+        }
+      },
+      "additionalProperties": false
+    },
+    "security_settings": {
+      "type": "object",
+      "properties": {
+        "skip_security_scan": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip security scanning (requires elevated permissions)"
+        },
+        "allowed_network_access": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow network access during build"
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "description": "Tags for categorizing the build"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Build description"
+        },
+        "client_version": {
+          "type": "string",
+          "description": "Version of the client requesting the build"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "source_url": "https://github.com/example/dotnet-app.git",
+      "source_type": "git",
+      "project_type": "dotnet",
+      "build_config": "Release",
+      "build_timeout": 15,
+      "user_id": "user123",
+      "project_name": "My ASP.NET App",
+      "build_arguments": {
+        "target_framework": "net8.0",
+        "custom_commands": [
+          "dotnet restore",
+          "dotnet test"
+        ]
+      },
+      "notification_settings": {
+        "email": "user@example.com",
+        "include_logs": true
+      },
+      "metadata": {
+        "tags": ["web-app", "production"],
+        "description": "Production build of web application"
+      }
+    },
+    {
+      "source_url": "https://github.com/example/react-app.git",
+      "source_type": "git",
+      "project_type": "nodejs",
+      "build_config": "Production",
+      "user_id": "user456",
+      "build_arguments": {
+        "node_version": "18"
+      },
+      "environment_variables": {
+        "NODE_ENV": "production",
+        "API_URL": "https://api.example.com"
+      }
+    }
+  ]
+}

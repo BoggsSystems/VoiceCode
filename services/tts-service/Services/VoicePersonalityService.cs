@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Options;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
+using Models = VoiceCode.Common.Models;
 using VoiceCode.TTSService.Configuration;
 using VoiceCode.TTSService.Services.Interfaces;
 
@@ -9,7 +11,7 @@ public class VoicePersonalityService : IVoicePersonalityService
 {
     private readonly ILogger<VoicePersonalityService> _logger;
     private readonly IOptions<VoiceOptions> _voiceOptions;
-    private readonly Dictionary<PersonalityProfile, VoiceProfile> _personalityMappings;
+    private readonly Dictionary<PersonalityProfile, Models.VoiceProfile> _personalityMappings;
 
     public VoicePersonalityService(
         ILogger<VoicePersonalityService> logger,
@@ -20,27 +22,37 @@ public class VoicePersonalityService : IVoicePersonalityService
         _personalityMappings = InitializePersonalityMappings();
     }
 
-    public Task<VoiceProfile> GetVoiceProfileAsync(string profileName)
+    public Task<Models.VoiceProfile> GetVoiceProfileAsync(string profileName)
     {
-        if (_voiceOptions.Value.Profiles.TryGetValue(profileName, out var profile))
+        if (_voiceOptions.Value.Profiles.TryGetValue(profileName, out var configProfile))
         {
-            return Task.FromResult(profile);
+            return Task.FromResult(ConvertToModelProfile(profileName, configProfile));
         }
 
         // Return default profile
-        var defaultProfile = new VoiceProfile
+        var defaultProfile = new Models.VoiceProfile
         {
+            Id = "default",
             Name = "default",
-            Voice = _voiceOptions.Value.DefaultVoice,
+            DisplayName = "Default Voice",
             Language = _voiceOptions.Value.DefaultLanguage,
-            Style = new SpeechStyle { Style = "friendly", StyleDegree = 1.0 },
-            Prosody = new ProsodySettings { Rate = "1.0", Pitch = "0%", Volume = "100" }
+            Gender = "Female",
+            NeuralVoiceName = _voiceOptions.Value.DefaultVoice,
+            Styles = new Dictionary<string, string> { { "default", "friendly" } },
+            Personality = PersonalityProfile.FriendlyAssistant,
+            Characteristics = new VoiceCharacteristics
+            {
+                DefaultSpeed = 1.0,
+                DefaultPitch = 1.0,
+                Tone = "warm",
+                AgeGroup = "young"
+            }
         };
 
         return Task.FromResult(defaultProfile);
     }
 
-    public Task<VoiceProfile> GetPersonalityVoiceAsync(PersonalityProfile personality)
+    public Task<Models.VoiceProfile> GetPersonalityVoiceAsync(PersonalityProfile personality)
     {
         if (_personalityMappings.TryGetValue(personality, out var profile))
         {
@@ -50,85 +62,114 @@ public class VoicePersonalityService : IVoicePersonalityService
         return GetVoiceProfileAsync("default");
     }
 
-    public Task<Dictionary<string, VoiceProfile>> GetAllProfilesAsync()
+    public Task<Dictionary<string, Models.VoiceProfile>> GetAllProfilesAsync()
     {
-        return Task.FromResult(_voiceOptions.Value.Profiles);
+        var modelProfiles = new Dictionary<string, Models.VoiceProfile>();
+        foreach (var kvp in _voiceOptions.Value.Profiles)
+        {
+            modelProfiles[kvp.Key] = ConvertToModelProfile(kvp.Key, kvp.Value);
+        }
+        return Task.FromResult(modelProfiles);
+    }
+    
+    private Models.VoiceProfile ConvertToModelProfile(string id, ConfigVoiceProfile configProfile)
+    {
+        return new Models.VoiceProfile
+        {
+            Id = id,
+            Name = configProfile.Name,
+            DisplayName = configProfile.Name,
+            Language = configProfile.Language,
+            Gender = "Female", // Default, could be extended
+            NeuralVoiceName = configProfile.Voice,
+            Styles = new Dictionary<string, string> { { "default", configProfile.Style.Style } },
+            Personality = PersonalityProfile.FriendlyAssistant, // Default
+            Characteristics = new VoiceCharacteristics
+            {
+                DefaultSpeed = double.Parse(configProfile.Prosody.Rate),
+                DefaultPitch = configProfile.Prosody.Pitch.Contains("%") 
+                    ? 1.0 + (double.Parse(configProfile.Prosody.Pitch.Replace("%", "")) / 100.0)
+                    : 1.0,
+                Tone = "warm",
+                AgeGroup = "young"
+            }
+        };
     }
 
-    private Dictionary<PersonalityProfile, VoiceProfile> InitializePersonalityMappings()
+    private Dictionary<PersonalityProfile, Models.VoiceProfile> InitializePersonalityMappings()
     {
-        return new Dictionary<PersonalityProfile, VoiceProfile>
+        return new Dictionary<PersonalityProfile, Models.VoiceProfile>
         {
-            [PersonalityProfile.Friendly] = new VoiceProfile
+            [PersonalityProfile.FriendlyAssistant] = new Models.VoiceProfile
             {
+                Id = "friendly",
                 Name = "friendly",
-                Voice = "en-US-JennyNeural",
+                DisplayName = "Friendly Assistant",
                 Language = "en-US",
-                Style = new SpeechStyle 
-                { 
-                    Style = "friendly", 
-                    StyleDegree = 1.2,
-                    Role = "Friend"
-                },
-                Prosody = new ProsodySettings 
-                { 
-                    Rate = "1.05", 
-                    Pitch = "+5%", 
-                    Volume = "105"
+                Gender = "Female",
+                NeuralVoiceName = "en-US-JennyNeural",
+                Styles = new Dictionary<string, string> { { "default", "friendly" } },
+                Personality = PersonalityProfile.FriendlyAssistant,
+                Characteristics = new VoiceCharacteristics
+                {
+                    DefaultSpeed = 1.05,
+                    DefaultPitch = 1.05,
+                    Tone = "warm",
+                    AgeGroup = "young"
                 }
             },
-            [PersonalityProfile.Professional] = new VoiceProfile
+            [PersonalityProfile.ProfessionalCoPilot] = new Models.VoiceProfile
             {
+                Id = "professional",
                 Name = "professional",
-                Voice = "en-US-AriaNeural",
-                Language = "en-US",
-                Style = new SpeechStyle 
-                { 
-                    Style = "professional", 
-                    StyleDegree = 1.0,
-                    Role = "Professional"
-                },
-                Prosody = new ProsodySettings 
-                { 
-                    Rate = "0.95", 
-                    Pitch = "0%", 
-                    Volume = "100"
+                DisplayName = "Professional Co-Pilot",
+                Language = "en-US", 
+                Gender = "Female",
+                NeuralVoiceName = "en-US-AriaNeural",
+                Styles = new Dictionary<string, string> { { "default", "professional" } },
+                Personality = PersonalityProfile.ProfessionalCoPilot,
+                Characteristics = new VoiceCharacteristics
+                {
+                    DefaultSpeed = 0.95,
+                    DefaultPitch = 1.0,
+                    Tone = "professional",
+                    AgeGroup = "middle"
                 }
             },
-            [PersonalityProfile.Casual] = new VoiceProfile
+            [PersonalityProfile.CasualBuddy] = new Models.VoiceProfile
             {
+                Id = "casual",
                 Name = "casual",
-                Voice = "en-US-GuyNeural",
+                DisplayName = "Casual Buddy",
                 Language = "en-US",
-                Style = new SpeechStyle 
-                { 
-                    Style = "casual", 
-                    StyleDegree = 1.1,
-                    Role = "Colleague"
-                },
-                Prosody = new ProsodySettings 
-                { 
-                    Rate = "1.1", 
-                    Pitch = "+2%", 
-                    Volume = "102"
+                Gender = "Male",
+                NeuralVoiceName = "en-US-GuyNeural",
+                Styles = new Dictionary<string, string> { { "default", "casual" } },
+                Personality = PersonalityProfile.CasualBuddy,
+                Characteristics = new VoiceCharacteristics
+                {
+                    DefaultSpeed = 1.1,
+                    DefaultPitch = 1.02,
+                    Tone = "casual",
+                    AgeGroup = "young"
                 }
             },
-            [PersonalityProfile.Minimalist] = new VoiceProfile
+            [PersonalityProfile.Minimalist] = new Models.VoiceProfile
             {
-                Name = "minimalist",
-                Voice = "en-US-JasonNeural",
+                Id = "minimalist",
+                Name = "minimalist", 
+                DisplayName = "Minimalist",
                 Language = "en-US",
-                Style = new SpeechStyle 
-                { 
-                    Style = "calm", 
-                    StyleDegree = 0.8,
-                    Role = "Assistant"
-                },
-                Prosody = new ProsodySettings 
-                { 
-                    Rate = "1.0", 
-                    Pitch = "-2%", 
-                    Volume = "95"
+                Gender = "Male",
+                NeuralVoiceName = "en-US-JasonNeural",
+                Styles = new Dictionary<string, string> { { "default", "calm" } },
+                Personality = PersonalityProfile.Minimalist,
+                Characteristics = new VoiceCharacteristics
+                {
+                    DefaultSpeed = 1.0,
+                    DefaultPitch = 0.98,
+                    Tone = "calm",
+                    AgeGroup = "mature"
                 }
             }
         };

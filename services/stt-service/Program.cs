@@ -8,6 +8,7 @@ using VoiceCode.Common.Interfaces;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using StackExchange.Redis;
+using VoiceCode.STTService.HealthChecks;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()

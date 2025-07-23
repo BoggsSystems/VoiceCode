@@ -229,13 +229,13 @@ resource "azurerm_container_registry" "main" {
   tags = local.common_tags
 }
 
-# Static Web App for React Frontend
-resource "azurerm_static_web_app" "main" {
-  name                = "${local.resource_prefix}-swa"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = "eastus2" # Limited regions for Static Web Apps
-  sku_tier            = var.environment == "prod" ? "Standard" : "Free"
-  sku_size            = var.environment == "prod" ? "Standard" : "Free"
-  
-  tags = local.common_tags
-}
+# Static Site for React Frontend (commented out for initial deployment)
+# resource "azurerm_static_site" "main" {
+#   name                = "${local.resource_prefix}-swa"
+#   resource_group_name = azurerm_resource_group.main.name
+#   location            = "eastus2" # Limited regions for Static Sites
+#   sku_tier            = var.environment == "prod" ? "Standard" : "Free"
+#   sku_size            = var.environment == "prod" ? "Standard" : "Free"
+#   
+#   tags = local.common_tags
+# }

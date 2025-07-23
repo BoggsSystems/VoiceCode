@@ -69,7 +69,8 @@ public class SpeechToTextService : ISTTService
 
                 // Enable detailed results for better accuracy
                 _speechConfig.OutputFormat = OutputFormat.Detailed;
-                _speechConfig.SetProperty(PropertyId.SpeechServiceConnection_SingleLanguageIdPriority, "Latency");
+                // Enable language ID priority for faster recognition
+                _speechConfig.SetProperty("SPEECH-SingleLanguageIdPriority", "Latency");
 
                 using var audioStream = new MemoryStream(audioData);
                 using var audioConfig = AudioConfig.FromStreamInput(AudioInputStream.CreatePushStream());

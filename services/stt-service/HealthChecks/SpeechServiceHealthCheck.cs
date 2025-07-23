@@ -2,6 +2,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using VoiceCode.STTService.Configuration;
 using Microsoft.CognitiveServices.Speech;
+using Microsoft.CognitiveServices.Speech.Audio;
 
 namespace VoiceCode.STTService.HealthChecks;
 
@@ -35,15 +36,15 @@ public class SpeechServiceHealthCheck : IHealthCheck
                 speechConfig = SpeechConfig.FromSubscription(_options.Key, _options.Region);
             }
 
-            // Test the connection by creating a recognizer
+            // Test the connection by creating a recognizer with a stream config
             // This doesn't actually perform recognition but validates the configuration
-            using var audioConfig = AudioConfig.FromDefaultMicrophoneInput();
+            using var pushStream = AudioInputStream.CreatePushStream();
+            using var audioConfig = AudioConfig.FromStreamInput(pushStream);
             using var recognizer = new SpeechRecognizer(speechConfig, audioConfig);
 
             // Get the endpoint ID to verify connection
-            var endpointId = await recognizer.Properties.GetPropertyAsync(
-                PropertyId.SpeechServiceConnection_Endpoint,
-                cancellationToken);
+            var endpointId = recognizer.Properties.GetProperty(
+                PropertyId.SpeechServiceConnection_Endpoint);
 
             if (!string.IsNullOrEmpty(endpointId))
             {

@@ -13,27 +13,40 @@ output "key_vault_uri" {
   value       = azurerm_key_vault.main.vault_uri
 }
 
-output "app_service_urls" {
-  description = "URLs of the deployed app services"
+# Container Instance URLs
+output "container_instance_urls" {
+  description = "URLs for all container instances"
   value = {
-    for k, v in azurerm_linux_web_app.services : k => "https://${v.default_hostname}"
+    for k, v in azurerm_container_group.services : k => "http://${v.fqdn}"
   }
 }
 
-output "static_web_app_url" {
-  description = "URL of the static web app"
-  value       = "https://${azurerm_static_web_app.main.default_hostname}"
+output "container_instance_ips" {
+  description = "IP addresses for all container instances"
+  value = {
+    for k, v in azurerm_container_group.services : k => v.ip_address
+  }
 }
 
-output "api_management_gateway_url" {
-  description = "API Management gateway URL"
-  value       = azurerm_api_management.main.gateway_url
+output "load_balancer_ip" {
+  description = "Load balancer public IP address"
+  value       = azurerm_public_ip.lb_public_ip.ip_address
 }
 
-output "api_management_portal_url" {
-  description = "API Management developer portal URL"
-  value       = azurerm_api_management.main.developer_portal_url
-}
+# output "static_web_app_url" {
+#   description = "URL of the static web app"
+#   value       = "https://placeholder-frontend.example.com"
+# }
+
+# output "api_management_gateway_url" {
+#   description = "API Management gateway URL"
+#   value       = azurerm_api_management.main.gateway_url
+# }
+
+# output "api_management_portal_url" {
+#   description = "API Management developer portal URL"
+#   value       = azurerm_api_management.main.developer_portal_url
+# }
 
 output "service_bus_namespace" {
   description = "Service Bus namespace name"
@@ -121,7 +134,7 @@ output "deployment_instructions" {
        - Configure SSL certificates
     
     5. Test the deployment:
-       - Access the web app at ${azurerm_static_web_app.main.default_hostname}
-       - Test API endpoints through ${azurerm_api_management.main.gateway_url}
+       - Access the web app at placeholder-frontend.example.com
+       - Test API endpoints through API Management (will be deployed next)
   EOT
 }

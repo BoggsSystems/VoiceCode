@@ -1,0 +1,233 @@
+name: Build and Push Container Images
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'infrastructure/cloud-builds/build-agents/**'
+      - '.github/workflows/build-images.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infrastructure/cloud-builds/build-agents/**'
+      - '.github/workflows/build-images.yml'
+  workflow_dispatch:
+    inputs:
+      build_all:
+        description: 'Build all images'
+        required: false
+        default: 'false'
+        type: boolean
+      push_images:
+        description: 'Push images to registry'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  REGISTRY_USERNAME: ${{ secrets.AZURE_CLIENT_ID }}
+  REGISTRY_PASSWORD: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      base-changed: ${{ steps.changes.outputs.base }}
+      dotnet-changed: ${{ steps.changes.outputs.dotnet }}
+      nodejs-changed: ${{ steps.changes.outputs.nodejs }}
+      python-changed: ${{ steps.changes.outputs.python }}
+      java-changed: ${{ steps.changes.outputs.java }}
+      should-build-all: ${{ github.event.inputs.build_all == 'true' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if [ "${{ github.event.inputs.build_all }}" == "true" ] || [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "base=true" >> $GITHUB_OUTPUT
+            echo "dotnet=true" >> $GITHUB_OUTPUT
+            echo "nodejs=true" >> $GITHUB_OUTPUT
+            echo "python=true" >> $GITHUB_OUTPUT
+            echo "java=true" >> $GITHUB_OUTPUT
+          else
+            echo "base=$(git diff --name-only HEAD~1 HEAD | grep -E '^infrastructure/cloud-builds/build-agents/(base|common)' | wc -l | xargs test 0 -ne && echo true || echo false)" >> $GITHUB_OUTPUT
+            echo "dotnet=$(git diff --name-only HEAD~1 HEAD | grep -E '^infrastructure/cloud-builds/build-agents/(base|dotnet)' | wc -l | xargs test 0 -ne && echo true || echo false)" >> $GITHUB_OUTPUT
+            echo "nodejs=$(git diff --name-only HEAD~1 HEAD | grep -E '^infrastructure/cloud-builds/build-agents/(base|nodejs)' | wc -l | xargs test 0 -ne && echo true || echo false)" >> $GITHUB_OUTPUT
+            echo "python=$(git diff --name-only HEAD~1 HEAD | grep -E '^infrastructure/cloud-builds/build-agents/(base|python)' | wc -l | xargs test 0 -ne && echo true || echo false)" >> $GITHUB_OUTPUT
+            echo "java=$(git diff --name-only HEAD~1 HEAD | grep -E '^infrastructure/cloud-builds/build-agents/(base|java)' | wc -l | xargs test 0 -ne && echo true || echo false)" >> $GITHUB_OUTPUT
+          fi
+
+  build-base:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.base-changed == 'true' || needs.detect-changes.outputs.should-build-all == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/voicecode-build-base
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v5
+        with:
+          context: infrastructure/cloud-builds/build-agents/base
+          file: infrastructure/cloud-builds/build-agents/base/Dockerfile
+          push: ${{ github.event.inputs.push_images != 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  build-dotnet:
+    needs: [detect-changes, build-base]
+    if: always() && (needs.detect-changes.outputs.dotnet-changed == 'true' || needs.detect-changes.outputs.should-build-all == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/voicecode-build-dotnet
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push .NET image
+        uses: docker/build-push-action@v5
+        with:
+          context: infrastructure/cloud-builds/build-agents/dotnet
+          file: infrastructure/cloud-builds/build-agents/dotnet/Dockerfile
+          push: ${{ github.event.inputs.push_images != 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/voicecode-build-base:latest
+
+  build-nodejs:
+    needs: [detect-changes, build-base]
+    if: always() && (needs.detect-changes.outputs.nodejs-changed == 'true' || needs.detect-changes.outputs.should-build-all == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USERNAME }}
+          password: ${{ env.REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/voicecode-build-nodejs
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Node.js image
+        uses: docker/build-push-action@v5
+        with:
+          context: infrastructure/cloud-builds/build-agents/nodejs
+          file: infrastructure/cloud-builds/build-agents/nodejs/Dockerfile
+          push: ${{ github.event.inputs.push_images != 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/voicecode-build-base:latest
+
+  security-scan:
+    needs: [build-base, build-dotnet, build-nodejs]
+    if: always() && (needs.build-base.result == 'success' || needs.build-dotnet.result == 'success' || needs.build-nodejs.result == 'success')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [voicecode-build-base, voicecode-build-dotnet, voicecode-build-nodejs]
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ matrix.image }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  update-deployment:
+    needs: [build-base, build-dotnet, build-nodejs]
+    if: always() && github.ref == 'refs/heads/main' && (needs.build-base.result == 'success' || needs.build-dotnet.result == 'success' || needs.build-nodejs.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update deployment manifests
+        run: |
+          # Update Terraform variables or Kubernetes manifests with new image tags
+          echo "Updating deployment configurations..."
+          
+          # This would typically update deployment files with new image tags
+          # For now, just log the successful build
+          echo "Build images updated successfully"
+
+      - name: Notify deployment system
+        run: |
+          # Send notification to deployment system about new images
+          echo "Notifying deployment system about new build images"

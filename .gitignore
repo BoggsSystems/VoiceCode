@@ -1,0 +1,14 @@
+
+# Build directories
+**/obj/
+**/bin/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+
+# Build scripts temp files
+/build-*.sh

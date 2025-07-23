@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Web.Resource;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
 using VoiceCode.TTSService.Services.Interfaces;
 
 namespace VoiceCode.TTSService.Controllers;

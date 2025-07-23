@@ -2,6 +2,8 @@ using System.Text;
 using System.Xml.Linq;
 using VoiceCode.TTSService.Configuration;
 using VoiceCode.TTSService.Services.Interfaces;
+using VoiceCode.Common.Models;
+using Models = VoiceCode.Common.Models;
 
 namespace VoiceCode.TTSService.Services;
 
@@ -14,7 +16,7 @@ public class SSMLBuilderService : ISSMLBuilder
         _logger = logger;
     }
 
-    public Task<string> BuildAsync(string text, VoiceProfile profile, string? emotion = null)
+    public Task<string> BuildAsync(string text, VoiceCode.Common.Models.VoiceProfile profile, string? emotion = null)
     {
         try
         {
@@ -36,60 +38,47 @@ public class SSMLBuilderService : ISSMLBuilder
         }
     }
 
-    private XElement BuildVoiceElement(string text, VoiceProfile profile, string? emotion)
+    private XElement BuildVoiceElement(string text, VoiceCode.Common.Models.VoiceProfile profile, string? emotion)
     {
         var voiceElement = new XElement("voice",
-            new XAttribute("name", profile.Voice));
+            new XAttribute("name", profile.NeuralVoiceName));
 
         // Add style if available
-        if (!string.IsNullOrEmpty(profile.Style.Style))
+        if (profile.Styles != null && profile.Styles.Count > 0)
         {
+            var style = emotion ?? (profile.Styles.ContainsKey("default") ? profile.Styles["default"] : profile.Styles.First().Value);
             var styleElement = new XElement("mstts:express-as",
                 new XAttribute(XNamespace.Xmlns + "mstts", "http://www.w3.org/2001/mstts"),
-                new XAttribute("style", emotion ?? profile.Style.Style));
-
-            if (profile.Style.StyleDegree != 1.0)
-            {
-                styleElement.Add(new XAttribute("styledegree", profile.Style.StyleDegree.ToString("F1")));
-            }
-
-            if (!string.IsNullOrEmpty(profile.Style.Role))
-            {
-                styleElement.Add(new XAttribute("role", profile.Style.Role));
-            }
+                new XAttribute("style", style));
 
             // Add prosody element inside style
-            var prosodyElement = BuildProsodyElement(text, profile.Prosody);
+            var prosodyElement = BuildProsodyElement(text, profile.Characteristics);
             styleElement.Add(prosodyElement);
             voiceElement.Add(styleElement);
         }
         else
         {
             // Add prosody directly if no style
-            var prosodyElement = BuildProsodyElement(text, profile.Prosody);
+            var prosodyElement = BuildProsodyElement(text, profile.Characteristics);
             voiceElement.Add(prosodyElement);
         }
 
         return voiceElement;
     }
 
-    private XElement BuildProsodyElement(string text, ProsodySettings prosody)
+    private XElement BuildProsodyElement(string text, VoiceCharacteristics characteristics)
     {
         var prosodyElement = new XElement("prosody");
 
-        if (prosody.Rate != "1.0")
+        if (characteristics.DefaultSpeed != 1.0)
         {
-            prosodyElement.Add(new XAttribute("rate", prosody.Rate));
+            prosodyElement.Add(new XAttribute("rate", characteristics.DefaultSpeed.ToString("F1")));
         }
 
-        if (prosody.Pitch != "0%")
+        if (characteristics.DefaultPitch != 1.0)
         {
-            prosodyElement.Add(new XAttribute("pitch", prosody.Pitch));
-        }
-
-        if (prosody.Volume != "100")
-        {
-            prosodyElement.Add(new XAttribute("volume", prosody.Volume));
+            var pitchValue = ((characteristics.DefaultPitch - 1.0) * 100).ToString("F0") + "%";
+            prosodyElement.Add(new XAttribute("pitch", pitchValue));
         }
 
         // Process text for smart pauses and emphasis

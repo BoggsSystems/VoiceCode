@@ -5,6 +5,8 @@ using Polly;
 using Polly.Retry;
 using VoiceCode.Common.Interfaces;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
+using Models = VoiceCode.Common.Models;
 using VoiceCode.TTSService.Configuration;
 using VoiceCode.TTSService.Services.Interfaces;
 using System.Security.Cryptography;
@@ -12,12 +14,12 @@ using System.Text;
 
 namespace VoiceCode.TTSService.Services;
 
-public class TextToSpeechService : ITTSService, IDisposable
+public class TextToSpeechService : Interfaces.ITTSService, IDisposable
 {
     private readonly ILogger<TextToSpeechService> _logger;
     private readonly IOptions<AzureSpeechOptions> _speechOptions;
     private readonly IOptions<VoiceOptions> _voiceOptions;
-    private readonly IAudioStorageService _audioStorage;
+    private readonly Interfaces.IAudioStorageService _audioStorage;
     private readonly ICacheService _cache;
     private readonly IVoicePersonalityService _personalityService;
     private readonly ISSMLBuilder _ssmlBuilder;
@@ -29,7 +31,7 @@ public class TextToSpeechService : ITTSService, IDisposable
         ILogger<TextToSpeechService> logger,
         IOptions<AzureSpeechOptions> speechOptions,
         IOptions<VoiceOptions> voiceOptions,
-        IAudioStorageService audioStorage,
+        Interfaces.IAudioStorageService audioStorage,
         ICacheService cache,
         IVoicePersonalityService personalityService,
         ISSMLBuilder ssmlBuilder)
@@ -90,33 +92,49 @@ public class TextToSpeechService : ITTSService, IDisposable
                 }
             }
 
-            // Get voice profile and personality
-            var profile = await _personalityService.GetVoiceProfileAsync(request.VoiceProfile ?? "default");
-            var ssml = await BuildSSMLAsync(request.Text, profile, request.Emotion);
+            // Get voice profile based on personality or voice name
+            Models.VoiceProfile profile;
+            if (request.Personality.HasValue)
+            {
+                profile = await _personalityService.GetPersonalityVoiceAsync(request.Personality.Value);
+            }
+            else if (!string.IsNullOrEmpty(request.VoiceName))
+            {
+                // Try to find profile by voice name
+                var profiles = await _personalityService.GetAllProfilesAsync();
+                profile = profiles.Values.FirstOrDefault(p => p.NeuralVoiceName == request.VoiceName)
+                    ?? await _personalityService.GetVoiceProfileAsync("default");
+            }
+            else
+            {
+                profile = await _personalityService.GetVoiceProfileAsync("default");
+            }
+            
+            var ssml = await BuildSSMLAsync(request.Text, profile, request.Style);
 
             // Synthesize speech
             var audioData = await SynthesizeSpeechAsync(ssml, profile);
 
-            // Store audio if requested
-            string? audioUrl = null;
-            if (request.StoreAudio)
-            {
-                audioUrl = await _audioStorage.StoreAudioAsync(
-                    audioData,
-                    request.SessionId ?? Guid.NewGuid().ToString(),
-                    GetFileExtension(profile.Voice));
-            }
+            // Store audio to storage service
+            var audioUrl = await _audioStorage.StoreAudioAsync(
+                audioData,
+                request.RequestId ?? Guid.NewGuid().ToString(),
+                "mp3");
 
             var result = new SynthesisResult
             {
-                Id = Guid.NewGuid().ToString(),
-                AudioData = request.ReturnAudioData ? audioData : null,
+                RequestId = request.RequestId ?? Guid.NewGuid().ToString(),
+                AudioData = audioData,
                 AudioUrl = audioUrl,
-                Format = GetAudioFormat(profile.Voice),
+                ContentType = "audio/mpeg",
                 Duration = CalculateDuration(audioData),
-                VoiceUsed = profile.Voice,
-                SessionId = request.SessionId,
-                Timestamp = DateTime.UtcNow
+                ProcessedAt = DateTime.UtcNow,
+                Metadata = new Dictionary<string, object>
+                {
+                    { "voiceName", profile.NeuralVoiceName },
+                    { "language", profile.Language },
+                    { "personality", profile.Personality.ToString() }
+                }
             };
 
             // Cache result if enabled
@@ -140,13 +158,14 @@ public class TextToSpeechService : ITTSService, IDisposable
         PersonalityProfile personality,
         string? emotion = null)
     {
+        var profile = await _personalityService.GetPersonalityVoiceAsync(personality);
         var request = new SynthesisRequest
         {
             Text = text,
-            VoiceProfile = personality.ToString().ToLower(),
-            Emotion = emotion,
-            StoreAudio = true,
-            ReturnAudioData = true
+            VoiceName = profile.NeuralVoiceName,
+            Language = profile.Language,
+            Style = emotion ?? (profile.Styles.ContainsKey("default") ? profile.Styles["default"] : null),
+            Personality = personality
         };
 
         return await SynthesizeAsync(request);
@@ -211,7 +230,7 @@ public class TextToSpeechService : ITTSService, IDisposable
         }
     }
 
-    private async Task<string> BuildSSMLAsync(string text, VoiceProfile profile, string? emotion)
+    private async Task<string> BuildSSMLAsync(string text, Models.VoiceProfile profile, string? emotion)
     {
         if (!_voiceOptions.Value.EnableSSML)
         {
@@ -221,7 +240,7 @@ public class TextToSpeechService : ITTSService, IDisposable
         return await _ssmlBuilder.BuildAsync(text, profile, emotion);
     }
 
-    private async Task<byte[]> SynthesizeSpeechAsync(string ssml, VoiceProfile profile)
+    private async Task<byte[]> SynthesizeSpeechAsync(string ssml, Models.VoiceProfile profile)
     {
         await _semaphore.WaitAsync();
         try
@@ -312,7 +331,7 @@ public class TextToSpeechService : ITTSService, IDisposable
 
     private string GenerateCacheKey(SynthesisRequest request)
     {
-        var key = $"{request.Text}:{request.VoiceProfile}:{request.Emotion}";
+        var key = $"{request.Text}:{request.VoiceName}:{request.Style}";
         using var sha256 = SHA256.Create();
         var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
         return Convert.ToBase64String(hash);

@@ -1,0 +1,343 @@
+name: User Project Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: 'Source code URL (git repository or archive)'
+        required: true
+        type: string
+      source_type:
+        description: 'Source type'
+        required: true
+        default: 'git'
+        type: choice
+        options:
+          - git
+          - zip
+          - tar
+      project_type:
+        description: 'Project type'
+        required: false
+        type: choice
+        options:
+          - auto-detect
+          - dotnet
+          - nodejs
+          - python
+          - java
+          - rust
+          - go
+      build_config:
+        description: 'Build configuration'
+        required: false
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+          - Production
+          - Development
+      build_timeout:
+        description: 'Build timeout (minutes)'
+        required: false
+        default: '30'
+        type: string
+      user_id:
+        description: 'User ID for tracking'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  BUILD_STORAGE: ${{ secrets.BUILD_STORAGE_ACCOUNT }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  validate-request:
+    runs-on: ubuntu-latest
+    outputs:
+      build-id: ${{ steps.generate.outputs.build-id }}
+      is-valid: ${{ steps.validate.outputs.is-valid }}
+      project-type: ${{ steps.validate.outputs.project-type }}
+    steps:
+      - name: Generate build ID
+        id: generate
+        run: |
+          BUILD_ID="build-$(date +%s)-$(openssl rand -hex 4)"
+          echo "build-id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Generated build ID: $BUILD_ID"
+
+      - name: Validate build request
+        id: validate
+        run: |
+          # Validate source URL
+          if [[ ! "${{ github.event.inputs.source_url }}" =~ ^https?:// ]]; then
+            echo "Invalid source URL format"
+            echo "is-valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Validate timeout
+          if [[ ! "${{ github.event.inputs.build_timeout }}" =~ ^[0-9]+$ ]] || [[ "${{ github.event.inputs.build_timeout }}" -gt 60 ]]; then
+            echo "Invalid timeout (max 60 minutes)"
+            echo "is-valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Set project type
+          PROJECT_TYPE="${{ github.event.inputs.project_type }}"
+          if [[ "$PROJECT_TYPE" == "auto-detect" ]]; then
+            PROJECT_TYPE="auto"
+          fi
+          
+          echo "is-valid=true" >> $GITHUB_OUTPUT
+          echo "project-type=$PROJECT_TYPE" >> $GITHUB_OUTPUT
+          echo "Build request validation passed"
+
+      - name: Log build request
+        run: |
+          echo "Build Request Details:"
+          echo "- Build ID: ${{ steps.generate.outputs.build-id }}"
+          echo "- User ID: ${{ github.event.inputs.user_id }}"
+          echo "- Source URL: ${{ github.event.inputs.source_url }}"
+          echo "- Source Type: ${{ github.event.inputs.source_type }}"
+          echo "- Project Type: ${{ steps.validate.outputs.project-type }}"
+          echo "- Build Config: ${{ github.event.inputs.build_config }}"
+          echo "- Timeout: ${{ github.event.inputs.build_timeout }} minutes"
+
+  execute-build:
+    needs: validate-request
+    if: needs.validate-request.outputs.is-valid == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJson(github.event.inputs.build_timeout) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ env.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ env.AZURE_CLIENT_SECRET }}",
+              "subscriptionId": "${{ env.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ env.AZURE_TENANT_ID }}"
+            }
+
+      - name: Create isolated build environment
+        id: container
+        run: |
+          BUILD_ID="${{ needs.validate-request.outputs.build-id }}"
+          PROJECT_TYPE="${{ needs.validate-request.outputs.project-type }}"
+          
+          # Determine build agent image
+          if [[ "$PROJECT_TYPE" == "auto" ]]; then
+            BUILD_IMAGE="${{ env.REGISTRY }}/voicecode-build-base:latest"
+          else
+            BUILD_IMAGE="${{ env.REGISTRY }}/voicecode-build-${PROJECT_TYPE}:latest"
+          fi
+          
+          echo "build-image=$BUILD_IMAGE" >> $GITHUB_OUTPUT
+          echo "Using build image: $BUILD_IMAGE"
+          
+          # Create Azure Container Instance for isolated build
+          az container create \
+            --resource-group voicecode-rg \
+            --name "build-${BUILD_ID}" \
+            --image "$BUILD_IMAGE" \
+            --cpu 2 \
+            --memory 4 \
+            --restart-policy Never \
+            --environment-variables \
+              BUILD_ID="$BUILD_ID" \
+              SOURCE_URL="${{ github.event.inputs.source_url }}" \
+              SOURCE_TYPE="${{ github.event.inputs.source_type }}" \
+              BUILD_CONFIG="${{ github.event.inputs.build_config }}" \
+              PROJECT_TYPE="$PROJECT_TYPE" \
+              USER_ID="${{ github.event.inputs.user_id }}" \
+              BUILD_STORAGE="${{ env.BUILD_STORAGE }}" \
+            --secure-environment-variables \
+              AZURE_CLIENT_ID="${{ env.AZURE_CLIENT_ID }}" \
+              AZURE_CLIENT_SECRET="${{ env.AZURE_CLIENT_SECRET }}" \
+              AZURE_TENANT_ID="${{ env.AZURE_TENANT_ID }}" \
+            --no-wait
+          
+          echo "Container instance created: build-${BUILD_ID}"
+
+      - name: Monitor build progress
+        id: monitor
+        run: |
+          BUILD_ID="${{ needs.validate-request.outputs.build-id }}"
+          CONTAINER_NAME="build-${BUILD_ID}"
+          
+          echo "Monitoring build progress for container: $CONTAINER_NAME"
+          
+          # Wait for container to start
+          sleep 30
+          
+          # Monitor container status
+          while true; do
+            STATUS=$(az container show \
+              --resource-group voicecode-rg \
+              --name "$CONTAINER_NAME" \
+              --query "containers[0].instanceView.currentState.state" \
+              --output tsv 2>/dev/null || echo "Unknown")
+            
+            echo "Container status: $STATUS"
+            
+            case "$STATUS" in
+              "Succeeded")
+                echo "Build completed successfully"
+                echo "build-status=success" >> $GITHUB_OUTPUT
+                break
+                ;;
+              "Failed"|"Terminated")
+                echo "Build failed"
+                echo "build-status=failed" >> $GITHUB_OUTPUT
+                break
+                ;;
+              "Running")
+                echo "Build in progress..."
+                sleep 30
+                ;;
+              *)
+                echo "Unknown status: $STATUS"
+                sleep 10
+                ;;
+            esac
+          done
+
+      - name: Retrieve build logs
+        if: always()
+        run: |
+          BUILD_ID="${{ needs.validate-request.outputs.build-id }}"
+          CONTAINER_NAME="build-${BUILD_ID}"
+          
+          echo "Retrieving build logs..."
+          
+          # Get container logs
+          az container logs \
+            --resource-group voicecode-rg \
+            --name "$CONTAINER_NAME" \
+            > "build-logs-${BUILD_ID}.txt" 2>&1 || true
+          
+          # Display logs
+          echo "=== Build Logs ==="
+          cat "build-logs-${BUILD_ID}.txt" || echo "No logs available"
+
+      - name: Download build artifacts
+        if: steps.monitor.outputs.build-status == 'success'
+        run: |
+          BUILD_ID="${{ needs.validate-request.outputs.build-id }}"
+          
+          echo "Downloading build artifacts..."
+          
+          # Download artifacts from Azure Storage
+          az storage blob download \
+            --account-name "${{ env.BUILD_STORAGE }}" \
+            --container-name "build-artifacts" \
+            --name "builds/${BUILD_ID}/artifacts.tar.gz" \
+            --file "artifacts-${BUILD_ID}.tar.gz" \
+            --auth-mode login || echo "No artifacts found"
+          
+          # Extract and list artifacts
+          if [[ -f "artifacts-${BUILD_ID}.tar.gz" ]]; then
+            mkdir -p "artifacts-${BUILD_ID}"
+            tar -xzf "artifacts-${BUILD_ID}.tar.gz" -C "artifacts-${BUILD_ID}"
+            echo "Build artifacts:"
+            ls -la "artifacts-${BUILD_ID}/"
+          fi
+
+      - name: Upload artifacts to GitHub
+        if: steps.monitor.outputs.build-status == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ needs.validate-request.outputs.build-id }}
+          path: artifacts-${{ needs.validate-request.outputs.build-id }}/
+          retention-days: 7
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ needs.validate-request.outputs.build-id }}
+          path: build-logs-${{ needs.validate-request.outputs.build-id }}.txt
+          retention-days: 7
+
+      - name: Cleanup container
+        if: always()
+        run: |
+          BUILD_ID="${{ needs.validate-request.outputs.build-id }}"
+          CONTAINER_NAME="build-${BUILD_ID}"
+          
+          echo "Cleaning up container: $CONTAINER_NAME"
+          
+          # Delete container instance
+          az container delete \
+            --resource-group voicecode-rg \
+            --name "$CONTAINER_NAME" \
+            --yes || echo "Container already deleted"
+
+  notify-completion:
+    needs: [validate-request, execute-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare notification
+        id: notification
+        run: |
+          BUILD_ID="${{ needs.validate-request.outputs.build-id }}"
+          USER_ID="${{ github.event.inputs.user_id }}"
+          
+          if [[ "${{ needs.execute-build.result }}" == "success" ]]; then
+            STATUS="completed"
+            MESSAGE="Build completed successfully"
+          else
+            STATUS="failed"
+            MESSAGE="Build failed or was cancelled"
+          fi
+          
+          echo "build-status=$STATUS" >> $GITHUB_OUTPUT
+          echo "notification-message=$MESSAGE" >> $GITHUB_OUTPUT
+          
+          # Create build result
+          BUILD_RESULT="{
+            \"build_id\": \"$BUILD_ID\",
+            \"user_id\": \"$USER_ID\",
+            \"status\": \"$STATUS\",
+            \"message\": \"$MESSAGE\",
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+            \"artifacts_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+          }"
+          
+          echo "build-result<<EOF" >> $GITHUB_OUTPUT
+          echo "$BUILD_RESULT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Log build completion
+        run: |
+          echo "Build Completion Summary:"
+          echo "- Build ID: ${{ needs.validate-request.outputs.build-id }}"
+          echo "- User ID: ${{ github.event.inputs.user_id }}"
+          echo "- Status: ${{ steps.notification.outputs.build-status }}"
+          echo "- Message: ${{ steps.notification.outputs.notification-message }}"
+          echo "- Artifacts: Available in GitHub Actions artifacts"
+          
+          echo "Build result JSON:"
+          echo '${{ steps.notification.outputs.build-result }}'
+
+      # In a real implementation, this would send notifications via:
+      # - Azure Service Bus
+      # - SignalR
+      # - Email
+      # - Webhook
+      - name: Send notification (placeholder)
+        run: |
+          echo "Notification would be sent to user ${{ github.event.inputs.user_id }}"
+          echo "Status: ${{ steps.notification.outputs.build-status }}"
+          echo "Message: ${{ steps.notification.outputs.notification-message }}"

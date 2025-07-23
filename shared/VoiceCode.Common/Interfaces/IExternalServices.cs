@@ -26,8 +26,15 @@ public interface ICacheService
     Task SetAsync<T>(string key, T value, TimeSpan? expiration = null) where T : class;
     Task<bool> ExistsAsync(string key);
     Task RemoveAsync(string key);
+    Task<bool> DeleteAsync(string key);
+    Task<List<string>> GetKeysAsync(string pattern);
+    Task<long> IncrementAsync(string key, long value = 1, TimeSpan? expiry = null);
+    Task<bool> SetAddAsync(string key, string value, TimeSpan? expiry = null);
+    Task<string[]> SetMembersAsync(string key);
     Task<bool> LockAsync(string key, TimeSpan duration);
+    Task<bool> LockAsync(string key, string value, TimeSpan expiry);
     Task UnlockAsync(string key);
+    Task<bool> UnlockAsync(string key, string value);
 }
 
 public interface IQueueService

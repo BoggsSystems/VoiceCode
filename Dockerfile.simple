@@ -1,0 +1,11 @@
+# Simple test dockerfile for VoiceCode services
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+# Just create a simple health endpoint
+RUN echo '{"status":"healthy"}' > /app/health.json
+
+WORKDIR /app
+EXPOSE 80
+
+# Simple web server that returns health status
+CMD ["sh", "-c", "while true; do echo -e 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n'; cat /app/health.json; done | nc -l -p 80"]

@@ -11,7 +11,7 @@ public interface ISTTService
 
 public interface IClaudeService
 {
-    Task<CodeGenerationResponse> GenerateCodeAsync(CodeGenerationRequest request);
+    Task<DTOs.CodeGenerationResponse> GenerateCodeAsync(DTOs.CodeGenerationRequest request);
     Task<string> ExplainCodeAsync(string code, string language);
     Task<string> FixCodeAsync(string code, string error, string language);
     Task<string> RefactorCodeAsync(string code, string instruction, string language);
@@ -19,9 +19,9 @@ public interface IClaudeService
 
 public interface IPromptRouter
 {
-    Task<RoutingResult> RouteRequestAsync(RoutingRequest request);
-    Task<Intent> ClassifyIntentAsync(string transcript);
-    Task<UserContext> GetContextAsync(string userId, string sessionId);
+    Task<DTOs.RoutingResult> RouteRequestAsync(DTOs.RoutingRequest request);
+    Task<Models.Intent> ClassifyIntentAsync(string transcript);
+    Task<Models.UserContext> GetContextAsync(string userId, string sessionId);
 }
 
 public interface ICodeGenerator
@@ -39,14 +39,14 @@ public interface ITTSService
 
 public interface IDispatcher
 {
-    Task<DispatchResult> DispatchResultAsync(ProcessingResult result);
+    Task<DTOs.DispatchResult> DispatchResultAsync(Models.ProcessingResult result);
     Task<bool> SendNotificationAsync(string userId, NotificationMessage message);
 }
 
 // Supporting types
 public class CodeGenerationInput
 {
-    public List<CodeBlock> CodeBlocks { get; set; } = new();
+    public List<Models.CodeBlock> CodeBlocks { get; set; } = new();
     public string TargetDirectory { get; set; } = string.Empty;
 }
 
@@ -80,17 +80,4 @@ public interface IAudioStorageService
     Task<List<string>> ListAudioFilesAsync(DateTime? startDate = null, DateTime? endDate = null);
 }
 
-// Cache service interface
-public interface ICacheService
-{
-    Task<T?> GetAsync<T>(string key) where T : class;
-    Task SetAsync<T>(string key, T value, TimeSpan? expiry = null) where T : class;
-    Task<bool> DeleteAsync(string key);
-    Task<bool> ExistsAsync(string key);
-    Task<List<string>> GetKeysAsync(string pattern);
-    Task<long> IncrementAsync(string key, long value = 1, TimeSpan? expiry = null);
-    Task<bool> SetAddAsync(string key, string value, TimeSpan? expiry = null);
-    Task<string[]> SetMembersAsync(string key);
-    Task<bool> LockAsync(string key, string value, TimeSpan expiry);
-    Task<bool> UnlockAsync(string key, string value);
-}
+// Cache service interface is defined in IExternalServices.cs

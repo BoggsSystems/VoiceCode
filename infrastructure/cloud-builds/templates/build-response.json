@@ -1,0 +1,409 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VoiceCode Build Response",
+  "type": "object",
+  "required": [
+    "build_id",
+    "user_id",
+    "status",
+    "timestamp"
+  ],
+  "properties": {
+    "build_id": {
+      "type": "string",
+      "pattern": "^build-[0-9]+-[a-f0-9]+$",
+      "description": "Unique identifier for the build"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "User who requested the build"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "submitted",
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+        "timeout"
+      ],
+      "description": "Current status of the build"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable status message"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the status update"
+    },
+    "progress": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Build progress percentage (0-100)"
+    },
+    "build_details": {
+      "type": "object",
+      "properties": {
+        "project_type": {
+          "type": "string",
+          "description": "Detected or specified project type"
+        },
+        "build_config": {
+          "type": "string",
+          "description": "Build configuration used"
+        },
+        "build_agent": {
+          "type": "string",
+          "description": "Build agent container image used"
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Build start timestamp"
+        },
+        "end_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Build completion timestamp"
+        },
+        "duration_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Build duration in seconds"
+        },
+        "build_environment": {
+          "type": "object",
+          "properties": {
+            "cpu_cores": {
+              "type": "number",
+              "description": "CPU cores allocated"
+            },
+            "memory_gb": {
+              "type": "number",
+              "description": "Memory allocated in GB"
+            },
+            "disk_gb": {
+              "type": "number",
+              "description": "Disk space allocated in GB"
+            },
+            "container_instance": {
+              "type": "string",
+              "description": "Azure Container Instance name"
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "Whether build artifacts are available"
+        },
+        "download_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to download build artifacts"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total size of artifacts in bytes"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of files in artifacts"
+        },
+        "expiry_date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When artifacts will be deleted"
+        },
+        "manifest": {
+          "type": "object",
+          "description": "Build artifact manifest"
+        }
+      }
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "available": {
+          "type": "boolean",
+          "description": "Whether build logs are available"
+        },
+        "download_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL to download build logs"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Size of log files in bytes"
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "warnings": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of warnings"
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of errors"
+            },
+            "tests_passed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of tests passed"
+            },
+            "tests_failed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of tests failed"
+            }
+          }
+        }
+      }
+    },
+    "security_scan": {
+      "type": "object",
+      "properties": {
+        "performed": {
+          "type": "boolean",
+          "description": "Whether security scan was performed"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed", "warnings", "skipped"],
+          "description": "Security scan status"
+        },
+        "issues_found": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of security issues found"
+        },
+        "scan_results": {
+          "type": "object",
+          "properties": {
+            "secrets_detected": {
+              "type": "boolean",
+              "description": "Whether secrets were detected"
+            },
+            "vulnerabilities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "severity": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "critical"]
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "performance_metrics": {
+      "type": "object",
+      "properties": {
+        "cpu_usage_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Peak CPU usage percentage"
+        },
+        "memory_usage_mb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Peak memory usage in MB"
+        },
+        "disk_usage_mb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Disk space used in MB"
+        },
+        "network_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of outbound network requests"
+        },
+        "package_downloads": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of packages downloaded"
+        }
+      }
+    },
+    "error_details": {
+      "type": "object",
+      "properties": {
+        "error_code": {
+          "type": "string",
+          "description": "Machine-readable error code"
+        },
+        "error_message": {
+          "type": "string",
+          "description": "Human-readable error message"
+        },
+        "stack_trace": {
+          "type": "string",
+          "description": "Error stack trace (if available)"
+        },
+        "failed_step": {
+          "type": "string",
+          "description": "Build step that failed"
+        },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Suggestions for fixing the error"
+        }
+      }
+    },
+    "billing": {
+      "type": "object",
+      "properties": {
+        "compute_minutes": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Compute minutes consumed"
+        },
+        "storage_mb_hours": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Storage consumed in MB-hours"
+        },
+        "network_gb": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Network data transfer in GB"
+        },
+        "estimated_cost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Estimated cost in USD"
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "build_id": "build-1705123456-a1b2c3d4",
+      "user_id": "user123",
+      "status": "completed",
+      "message": "Build completed successfully",
+      "timestamp": "2024-01-15T12:30:45Z",
+      "progress": 100,
+      "build_details": {
+        "project_type": "dotnet",
+        "build_config": "Release",
+        "build_agent": "voicecode-build-dotnet:latest",
+        "start_time": "2024-01-15T12:15:30Z",
+        "end_time": "2024-01-15T12:30:45Z",
+        "duration_seconds": 915,
+        "build_environment": {
+          "cpu_cores": 2,
+          "memory_gb": 4,
+          "disk_gb": 20,
+          "container_instance": "build-1705123456-a1b2c3d4"
+        }
+      },
+      "artifacts": {
+        "available": true,
+        "download_url": "https://storage.azure.com/builds/1705123456/artifacts.tar.gz",
+        "size_bytes": 15728640,
+        "file_count": 42,
+        "expiry_date": "2024-01-22T12:30:45Z"
+      },
+      "logs": {
+        "available": true,
+        "download_url": "https://storage.azure.com/builds/1705123456/logs.tar.gz",
+        "size_bytes": 524288,
+        "summary": {
+          "warnings": 2,
+          "errors": 0,
+          "tests_passed": 15,
+          "tests_failed": 0
+        }
+      },
+      "security_scan": {
+        "performed": true,
+        "status": "passed",
+        "issues_found": 0,
+        "scan_results": {
+          "secrets_detected": false,
+          "vulnerabilities": []
+        }
+      },
+      "performance_metrics": {
+        "cpu_usage_percent": 75.5,
+        "memory_usage_mb": 3072,
+        "disk_usage_mb": 1024,
+        "network_requests": 25,
+        "package_downloads": 12
+      }
+    },
+    {
+      "build_id": "build-1705123789-e5f6g7h8",
+      "user_id": "user456",
+      "status": "failed",
+      "message": "Build failed during compilation",
+      "timestamp": "2024-01-15T13:45:20Z",
+      "progress": 65,
+      "build_details": {
+        "project_type": "nodejs",
+        "build_config": "Production",
+        "build_agent": "voicecode-build-nodejs:latest",
+        "start_time": "2024-01-15T13:30:10Z",
+        "end_time": "2024-01-15T13:45:20Z",
+        "duration_seconds": 910
+      },
+      "logs": {
+        "available": true,
+        "download_url": "https://storage.azure.com/builds/1705123789/logs.tar.gz",
+        "size_bytes": 102400,
+        "summary": {
+          "warnings": 5,
+          "errors": 3,
+          "tests_passed": 0,
+          "tests_failed": 0
+        }
+      },
+      "error_details": {
+        "error_code": "COMPILATION_ERROR",
+        "error_message": "TypeScript compilation failed with 3 errors",
+        "failed_step": "build",
+        "suggestions": [
+          "Check TypeScript configuration in tsconfig.json",
+          "Fix type errors in source code",
+          "Update @types packages to latest versions"
+        ]
+      }
+    }
+  ]
+}

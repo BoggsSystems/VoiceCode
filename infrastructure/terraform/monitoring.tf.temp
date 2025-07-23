@@ -1,0 +1,238 @@
+# Monitoring and Alerting Configuration for VoiceCode
+
+# Action Group for alerts
+resource "azurerm_monitor_action_group" "main" {
+  name                = "${local.resource_prefix}-alerts"
+  resource_group_name = azurerm_resource_group.main.name
+  short_name          = "voicecode"
+
+  email_receiver {
+    name          = "admin-email"
+    email_address = var.admin_email
+  }
+
+  tags = local.common_tags
+}
+
+# Application Insights Smart Detection
+resource "azurerm_application_insights_smart_detection_rule" "failure_anomalies" {
+  name                    = "Abnormal rise in exception volume"
+  application_insights_id = azurerm_application_insights.main.id
+  enabled                 = true
+}
+
+# Service Bus Dead Letter Queue Alert
+resource "azurerm_monitor_metric_alert" "servicebus_deadletter" {
+  name                = "${local.resource_prefix}-servicebus-deadletter-alert"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [azurerm_servicebus_namespace.main.id]
+  description         = "Alert when messages are sent to dead letter queue"
+  severity            = 1
+  frequency           = "PT1M"
+  window_size         = "PT5M"
+
+  criteria {
+    metric_namespace = "Microsoft.ServiceBus/namespaces"
+    metric_name      = "DeadletteredMessages"
+    aggregation      = "Average"
+    operator         = "GreaterThan"
+    threshold        = 0
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
+}
+
+# Redis Memory Usage Alert
+resource "azurerm_monitor_metric_alert" "redis_memory" {
+  name                = "${local.resource_prefix}-redis-memory-alert"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [azurerm_redis_cache.main.id]
+  description         = "Alert when Redis memory usage is high"
+  severity            = 2
+  frequency           = "PT1M"
+  window_size         = "PT5M"
+
+  criteria {
+    metric_namespace = "Microsoft.Cache/redis"
+    metric_name      = "usedmemorypercentage"
+    aggregation      = "Average"
+    operator         = "GreaterThan"
+    threshold        = 80
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
+}
+
+# Cosmos DB RU Consumption Alert
+resource "azurerm_monitor_metric_alert" "cosmos_ru_consumption" {
+  name                = "${local.resource_prefix}-cosmos-ru-alert"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [azurerm_cosmosdb_account.main.id]
+  description         = "Alert when Cosmos DB RU consumption is high"
+  severity            = 2
+  frequency           = "PT1M"
+  window_size         = "PT5M"
+
+  criteria {
+    metric_namespace = "Microsoft.DocumentDB/databaseAccounts"
+    metric_name      = "TotalRequestUnits"
+    aggregation      = "Total"
+    operator         = "GreaterThan"
+    threshold        = 1000
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
+}
+
+# Storage Account Availability Alert
+resource "azurerm_monitor_metric_alert" "storage_availability" {
+  name                = "${local.resource_prefix}-storage-availability-alert"
+  resource_group_name = azurerm_resource_group.main.name
+  scopes              = [azurerm_storage_account.main.id]
+  description         = "Alert when storage account availability is low"
+  severity            = 1
+  frequency           = "PT1M"
+  window_size         = "PT5M"
+
+  criteria {
+    metric_namespace = "Microsoft.Storage/storageAccounts"
+    metric_name      = "Availability"
+    aggregation      = "Average"
+    operator         = "LessThan"
+    threshold        = 99
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = local.common_tags
+}
+
+# Diagnostic Settings for Key Resources
+resource "azurerm_monitor_diagnostic_setting" "storage" {
+  name                       = "storage-diagnostics"
+  target_resource_id         = azurerm_storage_account.main.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+
+  enabled_log {
+    category = "StorageRead"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  enabled_log {
+    category = "StorageDelete"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  metric {
+    category = "Transaction"
+    enabled  = var.enable_diagnostics
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "cosmos" {
+  count = var.enable_diagnostics ? 1 : 0
+
+  name                       = "cosmos-diagnostics"
+  target_resource_id         = azurerm_cosmosdb_account.main.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+
+  enabled_log {
+    category = "DataPlaneRequests"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  enabled_log {
+    category = "MongoRequests"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  enabled_log {
+    category = "QueryRuntimeStatistics"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  metric {
+    category = "Requests"
+    enabled  = true
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "redis" {
+  count = var.enable_diagnostics ? 1 : 0
+
+  name                       = "redis-diagnostics"
+  target_resource_id         = azurerm_redis_cache.main.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+
+  enabled_log {
+    category = "ConnectedClientList"
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+
+  metric {
+    category = "AllMetrics"
+    enabled  = true
+
+    retention_policy {
+      enabled = true
+      days    = var.log_retention_days
+    }
+  }
+}
