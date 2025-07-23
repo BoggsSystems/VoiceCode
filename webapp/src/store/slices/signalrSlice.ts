@@ -26,7 +26,7 @@ export const initializeSignalR = createAsyncThunk(
   async (_, { getState, dispatch, rejectWithValue }) => {
     try {
       const connection = new HubConnectionBuilder()
-        .withUrl(`${apiConfig.signalrUrl}/hubs/voice`, {
+        .withUrl(apiConfig.signalr.hubUrl, {
           accessTokenFactory: async () => {
             // Get access token from auth state or MSAL
             const state = getState() as any;
