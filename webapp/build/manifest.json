@@ -1,0 +1,58 @@
+{
+  "short_name": "VoiceCode",
+  "name": "VoiceCode - AI Voice Assistant",
+  "description": "AI-powered voice assistant for software development",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0078d4",
+  "background_color": "#ffffff",
+  "categories": ["productivity", "developer", "utilities"],
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Voice Command",
+      "short_name": "Voice",
+      "description": "Start a voice command",
+      "url": "/voice",
+      "icons": [
+        {
+          "src": "/icons/mic-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "description": "Start a text conversation",
+      "url": "/chat",
+      "icons": [
+        {
+          "src": "/icons/chat-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

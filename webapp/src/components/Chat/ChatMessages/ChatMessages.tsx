@@ -1,10 +1,10 @@
 import React from 'react';
-import { Message } from '../../../store/slices/chatSlice';
+import { ChatMessage as ChatMessageType } from '../../../store/slices/chatSlice';
 import ChatMessage from '../ChatMessage/ChatMessage';
 import './ChatMessages.css';
 
 interface ChatMessagesProps {
-  messages: Message[];
+  messages: ChatMessageType[];
   onPlayAudio?: (audioData: ArrayBuffer | string, messageId?: string) => void;
   isAudioPlaying?: boolean;
   currentlyPlayingId?: string;
@@ -38,13 +38,13 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
           isAudioPlaying={isAudioPlaying && currentlyPlayingId === message.id}
           showAvatar={
             index === 0 || 
-            messages[index - 1].role !== message.role
+            messages[index - 1].type !== message.type
           }
           showTimestamp={
             index === messages.length - 1 ||
-            messages[index + 1].role !== message.role ||
+            messages[index + 1].type !== message.type ||
             (message.timestamp && messages[index + 1].timestamp &&
-             new Date(message.timestamp).getTime() - new Date(messages[index + 1].timestamp).getTime() > 300000) // 5 minutes
+             message.timestamp.getTime() - messages[index + 1].timestamp.getTime() > 300000) // 5 minutes
           }
         />
       ))}

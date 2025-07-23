@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Message } from '../../../store/slices/chatSlice';
+import { ChatMessage as ChatMessageType } from '../../../store/slices/chatSlice';
 import CodeBlock from '../CodeBlock/CodeBlock';
 import './ChatMessage.css';
 
 interface ChatMessageProps {
-  message: Message;
+  message: ChatMessageType;
   onPlayAudio?: (audioData: ArrayBuffer | string, messageId?: string) => void;
   isAudioPlaying?: boolean;
   showAvatar?: boolean;
@@ -20,9 +20,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatTimestamp = (timestamp: Date) => {
+    return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const renderMessageContent = (content: string) => {
@@ -73,10 +72,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     : message.content;
 
   return (
-    <div className={`chat-message ${message.role}`}>
+    <div className={`chat-message ${message.type}`}>
       {showAvatar && (
         <div className="message-avatar">
-          {message.role === 'user' ? (
+          {message.type === 'user' ? (
             <i className="bi bi-person-circle"></i>
           ) : (
             <i className="bi bi-robot"></i>
@@ -87,13 +86,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
       <div className="message-content">
         <div className="message-header">
           <span className="message-sender">
-            {message.role === 'user' ? 'You' : 'VoiceCode AI'}
+            {message.type === 'user' ? 'You' : 'VoiceCode AI'}
           </span>
-          {message.messageType && (
+          {message.metadata?.intent && (
             <span className="message-type">
-              {message.messageType === 'voice' && <i className="bi bi-mic-fill"></i>}
-              {message.messageType === 'code' && <i className="bi bi-code-slash"></i>}
-              {message.messageType === 'error' && <i className="bi bi-exclamation-triangle"></i>}
+              {message.metadata.intent === 'voice' && <i className="bi bi-mic-fill"></i>}
+              {message.metadata.intent === 'code' && <i className="bi bi-code-slash"></i>}
             </span>
           )}
         </div>
@@ -119,10 +117,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           )}
           
           <div className="message-actions">
-            {message.audioData && onPlayAudio && (
+            {message.metadata?.voiceResponse?.audioUrl && onPlayAudio && (
               <button
                 className={`action-button ${isAudioPlaying ? 'playing' : ''}`}
-                onClick={() => onPlayAudio(message.audioData!, message.id)}
+                onClick={() => onPlayAudio(message.metadata!.voiceResponse!.audioUrl!, message.id)}
                 title={isAudioPlaying ? 'Stop audio' : 'Play audio'}
               >
                 <i className={`bi ${isAudioPlaying ? 'bi-pause-fill' : 'bi-play-fill'}`}></i>
@@ -137,7 +135,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
               <i className="bi bi-clipboard"></i>
             </button>
             
-            {message.role === 'assistant' && (
+            {message.type === 'assistant' && (
               <button
                 className="action-button"
                 onClick={() => {

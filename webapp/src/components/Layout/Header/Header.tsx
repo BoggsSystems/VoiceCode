@@ -7,8 +7,8 @@ import './Header.css';
 const Header: React.FC = () => {
   const { instance, accounts } = useMsal();
   const dispatch = useAppDispatch();
-  const { connected, reconnecting } = useAppSelector((state) => state.signalr);
-  const { sidebarCollapsed } = useAppSelector((state) => state.ui);
+  const { connectionState } = useAppSelector((state) => state.signalr);
+  const { sidebarOpen } = useAppSelector((state) => state.ui);
 
   const handleLogout = () => {
     instance.logoutPopup({
@@ -21,8 +21,8 @@ const Header: React.FC = () => {
   };
 
   const getConnectionStatus = () => {
-    if (reconnecting) return { status: 'reconnecting', text: 'Reconnecting...', icon: 'bi-arrow-repeat' };
-    if (connected) return { status: 'connected', text: 'Connected', icon: 'bi-circle-fill' };
+    if (connectionState === 'Connecting') return { status: 'connecting', text: 'Connecting...', icon: 'bi-arrow-repeat' };
+    if (connectionState === 'Connected') return { status: 'connected', text: 'Connected', icon: 'bi-circle-fill' };
     return { status: 'disconnected', text: 'Disconnected', icon: 'bi-circle' };
   };
 
@@ -34,7 +34,7 @@ const Header: React.FC = () => {
         <button
           className="sidebar-toggle"
           onClick={handleToggleSidebar}
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={!sidebarOpen ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <i className="bi bi-list"></i>
         </button>

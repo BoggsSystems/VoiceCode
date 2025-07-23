@@ -15,9 +15,9 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
 }) => {
   const navigate = useNavigate();
 
-  const formatTimeAgo = (timestamp: string) => {
+  const formatTimeAgo = (timestamp: string | Date) => {
     const now = new Date();
-    const time = new Date(timestamp);
+    const time = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
     const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
     
     if (diffInMinutes < 1) return 'Just now';
@@ -87,7 +87,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
                       {getConversationPreview(conversation)}
                     </p>
                     <span className="item-time">
-                      {conversation.lastActivity && formatTimeAgo(conversation.lastActivity)}
+                      {conversation.updatedAt && formatTimeAgo(conversation.updatedAt)}
                     </span>
                   </div>
                   <div className="item-arrow">
@@ -140,7 +140,7 @@ const RecentActivity: React.FC<RecentActivityProps> = ({
                     <div className="project-meta">
                       <span className="project-language">{project.language}</span>
                       <span className="item-time">
-                        {project.lastModified && formatTimeAgo(project.lastModified)}
+                        {project.lastAccessed && formatTimeAgo(project.lastAccessed)}
                       </span>
                     </div>
                   </div>

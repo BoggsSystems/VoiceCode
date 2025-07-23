@@ -19,8 +19,7 @@ const Dashboard: React.FC = () => {
   const stats = {
     totalConversations: conversations.length,
     totalProjects: projects.length,
-    codeFilesGenerated: projects.reduce((total, project) => 
-      total + (project.generatedFiles?.length || 0), 0),
+    codeFilesGenerated: 0, // Would be calculated from actual generated files in a real app
     voiceCommandsToday: conversations.filter(conv => {
       const today = new Date().toDateString();
       return conv.createdAt && new Date(conv.createdAt).toDateString() === today;

@@ -10,14 +10,14 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { sidebarCollapsed } = useAppSelector((state) => state.ui);
+  const { sidebarOpen } = useAppSelector((state) => state.ui);
 
   return (
     <div className="layout">
       <Header />
       <div className="layout-body">
         <Sidebar />
-        <main className={`layout-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <main className={`layout-main ${!sidebarOpen ? 'sidebar-collapsed' : ''}`}>
           {children}
         </main>
       </div>

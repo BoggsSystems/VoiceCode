@@ -64,7 +64,7 @@ export const useVoiceRecording = () => {
   // Start audio level monitoring
   const startAudioLevelMonitoring = useCallback((stream: MediaStream) => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
 
     const audioContext = audioContextRef.current;
