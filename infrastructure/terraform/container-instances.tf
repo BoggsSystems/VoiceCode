@@ -90,7 +90,7 @@ resource "azurerm_container_group" "services" {
 
   container {
     name   = each.key
-    image  = "voicecodebuildsprod.azurecr.io/voicecode-${each.key}-service:v2"
+    image  = "voicecodebuildsprod.azurecr.io/voicecode/${each.key}-service:v3"
     cpu    = each.key == "claude" || each.key == "generator" ? "1.0" : "0.5"
     memory = each.key == "claude" || each.key == "generator" ? "2.0" : "1.0"
 

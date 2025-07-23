@@ -29,8 +29,8 @@ RUN mkdir -p /app/Templates
 # Copy published app
 COPY --from=build /app/publish .
 
-# Copy templates if any
-COPY --from=build /src/services/generator-service/Templates /app/Templates || true
+# Copy templates if any exist
+# Note: Templates directory is currently empty, so we skip this step
 
 # Configure ASP.NET Core
 ENV ASPNETCORE_URLS=http://+:80
