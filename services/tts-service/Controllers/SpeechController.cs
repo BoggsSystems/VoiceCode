@@ -92,10 +92,13 @@ public class SpeechController : ControllerBase
                 request.VoiceProfile,
                 HttpContext.RequestAborted);
 
-            foreach (var chunk in result.AudioChunks)
+            if (result.AudioStream != null)
             {
-                await Response.Body.WriteAsync(chunk, 0, chunk.Length, HttpContext.RequestAborted);
-                await Response.Body.FlushAsync();
+                await foreach (var chunk in result.AudioStream.WithCancellation(HttpContext.RequestAborted))
+                {
+                    await Response.Body.WriteAsync(chunk.Data, 0, chunk.Data.Length, HttpContext.RequestAborted);
+                    await Response.Body.FlushAsync();
+                }
             }
 
             return new EmptyResult();
@@ -180,9 +183,9 @@ public class SpeechController : ControllerBase
     {
         return personality switch
         {
-            PersonalityProfile.Friendly => "Warm and approachable, like a helpful friend",
-            PersonalityProfile.Professional => "Clear and businesslike, focused on efficiency",
-            PersonalityProfile.Casual => "Relaxed and conversational, like a colleague",
+            PersonalityProfile.FriendlyAssistant => "Warm and approachable, like a helpful friend",
+            PersonalityProfile.ProfessionalCoPilot => "Clear and businesslike, focused on efficiency",
+            PersonalityProfile.CasualBuddy => "Relaxed and conversational, like a colleague",
             PersonalityProfile.Minimalist => "Brief and to the point, essential information only",
             _ => "Default personality"
         };
@@ -192,7 +195,7 @@ public class SpeechController : ControllerBase
 public class PersonalitySynthesisRequest
 {
     public string Text { get; set; } = string.Empty;
-    public PersonalityProfile Personality { get; set; } = PersonalityProfile.Friendly;
+    public PersonalityProfile Personality { get; set; } = PersonalityProfile.FriendlyAssistant;
     public string? Emotion { get; set; }
 }
 

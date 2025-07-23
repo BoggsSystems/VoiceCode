@@ -14,6 +14,11 @@ public class SynthesisRequest
     public string? Style { get; set; }
     public double? StyleDegree { get; set; }
     public string? RequestId { get; set; }
+    public string? SessionId { get; set; }
+    public VoiceProfile? VoiceProfile { get; set; }
+    public string? Emotion { get; set; }
+    public bool StoreAudio { get; set; } = true;
+    public bool ReturnAudioData { get; set; } = false;
     public bool EnableWordBoundaryEvents { get; set; }
     public PersonalityProfile? Personality { get; set; }
 }
@@ -25,6 +30,7 @@ public class SynthesisResult
     public string AudioUrl { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public int Duration { get; set; } // in milliseconds
+    public string? Error { get; set; }
     public List<WordBoundary> WordBoundaries { get; set; } = new();
     public DateTime ProcessedAt { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new();

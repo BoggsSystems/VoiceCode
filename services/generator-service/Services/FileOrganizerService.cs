@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using VoiceCode.GeneratorService.Services;
+using VoiceCode.Common.Models;
 
 namespace VoiceCode.GeneratorService.Services;
 
@@ -129,7 +130,7 @@ public class FileOrganizerService : IFileOrganizer
 
         // Controller files
         if (fileName.Contains("controller") || content.Contains("[controller]") ||
-            content.Contains("@controller") || content.Contains("class.*controller", RegexOptions.IgnoreCase))
+            content.Contains("@controller") || Regex.IsMatch(content, "class.*controller", RegexOptions.IgnoreCase))
         {
             return FileCategory.Controller;
         }

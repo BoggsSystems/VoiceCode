@@ -2,7 +2,10 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.SignalR;
 using System.Text.Json;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
+using VoiceCode.Common.Interfaces;
 using VoiceCode.DispatcherService.Hubs;
+using System.Linq;
 
 namespace VoiceCode.DispatcherService.Services;
 
@@ -114,7 +117,12 @@ public class QueueProcessorService : BackgroundService
             {
                 var generatorInput = new CodeGenerationInput
                 {
-                    CodeBlocks = response.CodeBlocks,
+                    CodeBlocks = response.CodeBlocks.Select(cb => new CodeBlock
+                    {
+                        Language = cb.Language,
+                        Content = cb.Code,
+                        FileName = cb.FileName ?? string.Empty
+                    }).ToList(),
                     TargetDirectory = session.Context.CurrentProject?.Path ?? "src"
                 };
 
@@ -127,7 +135,7 @@ public class QueueProcessorService : BackgroundService
                 var ttsRequest = new SynthesisRequest
                 {
                     Text = response.VoiceResponse.Text,
-                    VoiceProfile = session.Context.Preferences.Personality.ToString().ToLower(),
+                    VoiceName = session.Context.Preferences.VoiceSettings.Voice,
                     Emotion = response.VoiceResponse.Emotion,
                     StoreAudio = true,
                     ReturnAudioData = false
@@ -161,7 +169,7 @@ public class QueueProcessorService : BackgroundService
             var ttsRequest = new SynthesisRequest
             {
                 Text = successMessage,
-                VoiceProfile = session.Context.Preferences.Personality.ToString().ToLower(),
+                VoiceName = session.Context.Preferences.VoiceSettings.Voice,
                 StoreAudio = true,
                 ReturnAudioData = false
             };

@@ -26,9 +26,11 @@ public class UserContext
     public string UserId { get; set; } = string.Empty;
     public string SessionId { get; set; } = string.Empty;
     public List<ContextEntry> RecentInteractions { get; set; } = new();
+    public List<ContextEntry> History { get; set; } = new(); // Alias for RecentInteractions
     public UserPreferences Preferences { get; set; } = new();
     public Dictionary<string, object> SessionData { get; set; } = new();
     public DateTime LastUpdated { get; set; }
+    public ProjectContext? CurrentProject { get; set; }
 }
 
 public class ContextEntry
@@ -39,4 +41,17 @@ public class ContextEntry
     public string Result { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new();
+}
+
+public class ProjectContext
+{
+    public string ProjectId { get; set; } = string.Empty;
+    public string ProjectName { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty; // Alias for ProjectName
+    public string RootPath { get; set; } = string.Empty;
+    public string Path { get; set; } = string.Empty; // Alias for RootPath
+    public string Language { get; set; } = string.Empty;
+    public string? Framework { get; set; }
+    public List<string> ActiveFiles { get; set; } = new();
+    public Dictionary<string, object> Settings { get; set; } = new();
 }

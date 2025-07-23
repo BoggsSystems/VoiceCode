@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
 using VoiceCode.DispatcherService.Configuration;
 
 namespace VoiceCode.DispatcherService.Services;
@@ -48,7 +49,7 @@ public class SessionManager : ISessionManager
             {
                 UserId = userId,
                 Preferences = new UserPreferences(),
-                History = new List<ConversationTurn>()
+                History = new List<ContextEntry>()
             }
         };
 

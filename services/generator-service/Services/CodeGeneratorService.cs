@@ -38,7 +38,7 @@ public class CodeGeneratorService : ICodeGenerator
         _logger = logger;
     }
 
-    public async Task<GeneratedFiles> GenerateFilesAsync(CodeGenerationInput input)
+    public async Task<Common.Models.GeneratedFiles> GenerateFilesAsync(CodeGenerationInput input)
     {
         using var activity = System.Diagnostics.Activity.Current;
         activity?.SetTag("generator.block_count", input.CodeBlocks.Count);
@@ -47,10 +47,10 @@ public class CodeGeneratorService : ICodeGenerator
         {
             _logger.LogInformation("Generating files from {BlockCount} code blocks", input.CodeBlocks.Count);
 
-            var result = new GeneratedFiles
+            var result = new Common.Models.GeneratedFiles
             {
                 Id = Guid.NewGuid().ToString(),
-                Files = new List<GeneratedFile>(),
+                Files = new List<Common.Models.GeneratedFile>(),
                 Metadata = new Dictionary<string, object>
                 {
                     { "timestamp", DateTime.UtcNow },
@@ -196,7 +196,7 @@ public class CodeGeneratorService : ICodeGenerator
         var extension = GetFileExtension(codeBlock.Language);
         var fileName = codeBlock.FileName ?? $"generated_{Guid.NewGuid():N}.{extension}";
 
-        return new GeneratedFile
+        return new Common.Models.GeneratedFile
         {
             FileName = fileName,
             FilePath = Path.Combine(targetDirectory, fileName),
@@ -254,23 +254,4 @@ public class CodeGeneratorService : ICodeGenerator
     }
 }
 
-public class GeneratedFiles
-{
-    public string Id { get; set; } = string.Empty;
-    public List<GeneratedFile> Files { get; set; } = new();
-    public List<string> Errors { get; set; } = new();
-    public Dictionary<string, object> Metadata { get; set; } = new();
-}
-
-public class GeneratedFile
-{
-    public string FileName { get; set; } = string.Empty;
-    public string FilePath { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
-    public string Language { get; set; } = string.Empty;
-    public string FileType { get; set; } = string.Empty;
-    public long Size { get; set; }
-    public string? Template { get; set; }
-    public List<string> ValidationErrors { get; set; } = new();
-    public Dictionary<string, object> Metadata { get; set; } = new();
-}
+// Removed duplicate LocalGeneratedFiles and LocalGeneratedFile classes - using VoiceCode.Common.Models instead

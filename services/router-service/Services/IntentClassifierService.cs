@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.ML;
 using System.Text.RegularExpressions;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.Enums;
 using VoiceCode.RouterService.Configuration;
 using VoiceCode.RouterService.Models;
 
@@ -340,7 +341,7 @@ public class IntentClassifierService : IIntentClassifier
         };
     }
 
-    private IntentCategory MapTypeToCategory(string type)
+    private VoiceCode.Common.Enums.IntentCategory MapTypeToCategory(string type)
     {
         return type switch
         {
@@ -418,7 +419,7 @@ public class IntentClassifierService : IIntentClassifier
 
 public class IntentPattern
 {
-    public IntentCategory Category { get; set; }
+    public VoiceCode.Common.Enums.IntentCategory Category { get; set; }
     public string[] RequiredKeywords { get; set; } = Array.Empty<string>();
     public string[] OptionalKeywords { get; set; } = Array.Empty<string>();
     public string[] NegativeKeywords { get; set; } = Array.Empty<string>();

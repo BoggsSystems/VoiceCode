@@ -1,4 +1,5 @@
 using VoiceCode.Common.Enums;
+using VoiceCode.Common.Models;
 
 namespace VoiceCode.Common.DTOs;
 
@@ -51,6 +52,8 @@ public class RoutingResult
     public Intent Intent { get; set; } = new();
     public string? MessageId { get; set; }
     public string? EnhancedPrompt { get; set; }
+    public MessagePriority Priority { get; set; } = MessagePriority.Normal;
+    public string? Error { get; set; }
 }
 
 public class Route

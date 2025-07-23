@@ -20,6 +20,8 @@ public class TranscriptionResult
     public double Confidence { get; set; }
     public string Language { get; set; } = string.Empty;
     public double DurationMs { get; set; }
+    public bool Success { get; set; } = true;
+    public string? Error { get; set; }
     public List<TranscriptionAlternative> Alternatives { get; set; } = new();
     public List<TranscriptionWord> Words { get; set; } = new();
     public string? AudioUrl { get; set; }

@@ -2,7 +2,9 @@ using Microsoft.Extensions.Options;
 using VoiceCode.Common.DTOs;
 using VoiceCode.Common.Interfaces;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.Enums;
 using VoiceCode.RouterService.Configuration;
+using DTOs = VoiceCode.Common.DTOs;
 
 namespace VoiceCode.RouterService.Services;
 
@@ -114,12 +116,12 @@ public class PromptRouterService : IPromptRouter
         return await _contextManager.GetContextAsync(userId, sessionId);
     }
 
-    private Route DetermineRoute(Intent intent, UserContext context)
+    private DTOs.Route DetermineRoute(Intent intent, UserContext context)
     {
         // Check if we have a specific route configuration for this intent
         if (_options.Routes.TryGetValue(intent.Type, out var routeConfig))
         {
-            return new Route
+            return new DTOs.Route
             {
                 QueueName = routeConfig.QueueName,
                 Subject = routeConfig.Subject
@@ -129,47 +131,47 @@ public class PromptRouterService : IPromptRouter
         // Default routing based on intent category
         return intent.Category switch
         {
-            IntentCategory.CodeGeneration => new Route 
+            IntentCategory.CodeGeneration => new DTOs.Route 
             { 
                 QueueName = "code-generation", 
                 Subject = "generate" 
             },
-            IntentCategory.CodeExplanation => new Route 
+            IntentCategory.CodeExplanation => new DTOs.Route 
             { 
                 QueueName = "code-generation", 
                 Subject = "explain" 
             },
-            IntentCategory.CodeRefactoring => new Route 
+            IntentCategory.CodeRefactoring => new DTOs.Route 
             { 
                 QueueName = "code-generation", 
                 Subject = "refactor" 
             },
-            IntentCategory.ErrorFixing => new Route 
+            IntentCategory.ErrorFixing => new DTOs.Route 
             { 
                 QueueName = "code-generation", 
                 Subject = "fix" 
             },
-            IntentCategory.Testing => new Route 
+            IntentCategory.Testing => new DTOs.Route 
             { 
                 QueueName = "code-generation", 
                 Subject = "test" 
             },
-            IntentCategory.Documentation => new Route 
+            IntentCategory.Documentation => new DTOs.Route 
             { 
                 QueueName = "code-generation", 
                 Subject = "document" 
             },
-            IntentCategory.ProjectManagement => new Route 
+            IntentCategory.ProjectManagement => new DTOs.Route 
             { 
                 QueueName = "project-management", 
                 Subject = "manage" 
             },
-            IntentCategory.SystemCommand => new Route 
+            IntentCategory.SystemCommand => new DTOs.Route 
             { 
                 QueueName = "system-commands", 
                 Subject = "command" 
             },
-            _ => new Route 
+            _ => new DTOs.Route 
             { 
                 QueueName = "general", 
                 Subject = "process" 

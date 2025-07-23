@@ -1,6 +1,7 @@
 using Azure.Messaging.ServiceBus;
 using System.Text.Json;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.Enums;
 
 namespace VoiceCode.DispatcherService.Services;
 

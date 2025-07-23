@@ -32,11 +32,13 @@ public class FileMetadata
 
 public class GeneratedFiles
 {
-    public List<FileChange> Files { get; set; } = new();
+    public string Id { get; set; } = string.Empty;
+    public List<GeneratedFile> Files { get; set; } = new();
     public string Summary { get; set; } = string.Empty;
     public string CommitMessage { get; set; } = string.Empty;
     public List<string> Errors { get; set; } = new();
     public FileGenerationStatistics Statistics { get; set; } = new();
+    public Dictionary<string, object> Metadata { get; set; } = new();
 }
 
 public class FileGenerationStatistics
@@ -47,4 +49,17 @@ public class FileGenerationStatistics
     public int TotalLinesAdded { get; set; }
     public int TotalLinesRemoved { get; set; }
     public Dictionary<string, int> FilesByLanguage { get; set; } = new();
+}
+
+public class GeneratedFile
+{
+    public string FileName { get; set; } = string.Empty;
+    public string FilePath { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public string Language { get; set; } = string.Empty;
+    public string FileType { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public string? Template { get; set; }
+    public List<string> ValidationErrors { get; set; } = new();
+    public Dictionary<string, object> Metadata { get; set; } = new();
 }

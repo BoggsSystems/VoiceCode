@@ -1,13 +1,14 @@
 using Azure.Messaging.ServiceBus;
 using System.Text.Json;
 using VoiceCode.Common.DTOs;
+using DTOs = VoiceCode.Common.DTOs;
 
 namespace VoiceCode.RouterService.Services;
 
 public interface IQueueService
 {
-    Task<string> SendMessageAsync(Route route, object message);
-    Task<bool> SendBatchAsync(Route route, List<object> messages);
+    Task<string> SendMessageAsync(DTOs.Route route, object message);
+    Task<bool> SendBatchAsync(DTOs.Route route, List<object> messages);
 }
 
 public class ServiceBusQueueService : IQueueService
@@ -31,7 +32,7 @@ public class ServiceBusQueueService : IQueueService
         };
     }
 
-    public async Task<string> SendMessageAsync(Route route, object message)
+    public async Task<string> SendMessageAsync(DTOs.Route route, object message)
     {
         try
         {
@@ -65,7 +66,7 @@ public class ServiceBusQueueService : IQueueService
         }
     }
 
-    public async Task<bool> SendBatchAsync(Route route, List<object> messages)
+    public async Task<bool> SendBatchAsync(DTOs.Route route, List<object> messages)
     {
         if (!messages.Any())
             return true;

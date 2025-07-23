@@ -77,6 +77,11 @@ public class RedisCacheService : ICacheService
         }
     }
 
+    public async Task RemoveAsync(string key)
+    {
+        await DeleteAsync(key);
+    }
+
     public async Task<bool> ExistsAsync(string key)
     {
         try
@@ -167,6 +172,13 @@ public class RedisCacheService : ICacheService
         }
     }
 
+    public async Task<bool> LockAsync(string key, TimeSpan duration)
+    {
+        // Use a default lock value based on the current instance
+        var lockValue = Guid.NewGuid().ToString();
+        return await LockAsync(key, lockValue, duration);
+    }
+
     public async Task<bool> LockAsync(string key, string value, TimeSpan expiry)
     {
         try
@@ -199,5 +211,11 @@ public class RedisCacheService : ICacheService
             _logger.LogError(ex, "Error releasing lock for key: {Key}", key);
             return false;
         }
+    }
+
+    public async Task UnlockAsync(string key)
+    {
+        // Simple unlock that just deletes the key
+        await DeleteAsync(key);
     }
 }

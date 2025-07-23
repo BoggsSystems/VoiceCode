@@ -6,6 +6,7 @@ using VoiceCode.Common.Interfaces;
 using VoiceCode.Common.Models;
 using VoiceCode.Common.Enums;
 using VoiceCode.GeneratorService.Configuration;
+using DTOs = VoiceCode.Common.DTOs;
 
 namespace VoiceCode.GeneratorService.Services;
 
@@ -119,7 +120,7 @@ public class QueueProcessorService : BackgroundService
         ICodeGenerator codeGenerator)
     {
         // Call Claude to generate code
-        var claudeRequest = new CodeGenerationRequest
+        var claudeRequest = new DTOs.CodeGenerationRequest
         {
             Type = "generate",
             Instructions = request.EnhancedPrompt ?? request.Transcript,
@@ -227,24 +228,18 @@ public class QueueProcessorService : BackgroundService
         };
     }
 
-    private List<CodeBlock> ParseCodeBlocks(CodeGenerationResponse response)
+    private List<CodeBlock> ParseCodeBlocks(DTOs.CodeGenerationResponse response)
     {
-        // If the response already has code blocks, use them
-        if (response.Code?.Any() == true)
-        {
-            return response.Code;
-        }
-
-        // Otherwise, try to extract from the raw response
         var blocks = new List<CodeBlock>();
         
-        if (!string.IsNullOrEmpty(response.Code?.FirstOrDefault()?.Content))
+        // If we have code in the response, create a code block
+        if (!string.IsNullOrEmpty(response.Code))
         {
             blocks.Add(new CodeBlock
             {
-                Content = response.Code.First().Content,
+                Content = response.Code,
                 Language = response.Language,
-                FileName = response.Code.First().FileName
+                FileName = null // Will be determined by the generator
             });
         }
 

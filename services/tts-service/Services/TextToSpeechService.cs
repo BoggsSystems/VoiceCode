@@ -7,6 +7,7 @@ using VoiceCode.Common.Interfaces;
 using VoiceCode.Common.Models;
 using VoiceCode.Common.DTOs;
 using Models = VoiceCode.Common.Models;
+using DTOs = VoiceCode.Common.DTOs;
 using VoiceCode.TTSService.Configuration;
 using VoiceCode.TTSService.Services.Interfaces;
 using System.Security.Cryptography;
@@ -14,7 +15,7 @@ using System.Text;
 
 namespace VoiceCode.TTSService.Services;
 
-public class TextToSpeechService : Interfaces.ITTSService, IDisposable
+public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Interfaces.ITTSService, IDisposable
 {
     private readonly ILogger<TextToSpeechService> _logger;
     private readonly IOptions<AzureSpeechOptions> _speechOptions;
@@ -127,7 +128,7 @@ public class TextToSpeechService : Interfaces.ITTSService, IDisposable
                 AudioData = audioData,
                 AudioUrl = audioUrl,
                 ContentType = "audio/mpeg",
-                Duration = CalculateDuration(audioData),
+                Duration = (int)CalculateDuration(audioData).TotalMilliseconds,
                 ProcessedAt = DateTime.UtcNow,
                 Metadata = new Dictionary<string, object>
                 {
@@ -185,34 +186,42 @@ public class TextToSpeechService : Interfaces.ITTSService, IDisposable
             using var synthesizer = new SpeechSynthesizer(_speechConfig, audioConfig);
 
             var tcs = new TaskCompletionSource<StreamingSynthesisResult>();
-            var chunks = new List<byte[]>();
+            var chunks = new List<AudioChunk>();
+            var startTime = DateTime.UtcNow;
+            var offset = 0;
 
             synthesizer.Synthesizing += (s, e) =>
             {
                 if (e.Result.AudioData.Length > 0)
                 {
-                    chunks.Add(e.Result.AudioData);
+                    chunks.Add(new AudioChunk
+                    {
+                        Data = e.Result.AudioData,
+                        Offset = offset,
+                        Duration = 0 // Will be calculated based on format
+                    });
+                    offset += e.Result.AudioData.Length;
                 }
             };
 
-            synthesizer.SynthesisCompleted += (s, e) =>
+            synthesizer.SynthesisCompleted += async (s, e) =>
             {
                 var result = new StreamingSynthesisResult
                 {
-                    Id = Guid.NewGuid().ToString(),
-                    AudioChunks = chunks,
-                    Format = GetAudioFormat(profile.Voice),
-                    VoiceUsed = profile.Voice,
-                    Timestamp = DateTime.UtcNow
+                    RequestId = Guid.NewGuid().ToString(),
+                    AudioStream = CreateAsyncEnumerable(chunks),
+                    ContentType = "audio/mpeg",
+                    StartedAt = startTime
                 };
                 tcs.SetResult(result);
             };
 
             synthesizer.SynthesisCanceled += (s, e) =>
             {
-                if (e.Reason == CancellationReason.Error)
+                var cancellation = SpeechSynthesisCancellationDetails.FromResult(e.Result);
+                if (cancellation.Reason == CancellationReason.Error)
                 {
-                    tcs.SetException(new TTSException($"Synthesis failed: {e.ErrorDetails}"));
+                    tcs.SetException(new TTSException($"Synthesis failed: {cancellation.ErrorCode} - {cancellation.ErrorDetails}"));
                 }
                 else
                 {
@@ -293,6 +302,14 @@ public class TextToSpeechService : Interfaces.ITTSService, IDisposable
         };
     }
 
+    private async IAsyncEnumerable<AudioChunk> CreateAsyncEnumerable(List<AudioChunk> chunks)
+    {
+        foreach (var chunk in chunks)
+        {
+            yield return chunk;
+        }
+    }
+
     private string GetAudioFormat(string voice)
     {
         return _voiceOptions.Value.DefaultFormat.ToString().ToLower();
@@ -335,6 +352,59 @@ public class TextToSpeechService : Interfaces.ITTSService, IDisposable
         using var sha256 = SHA256.Create();
         var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(key));
         return Convert.ToBase64String(hash);
+    }
+
+    // Implement Common.Interfaces.ITTSService
+    public async Task<AudioResult> GenerateSpeechAsync(TTSRequest request)
+    {
+        try
+        {
+            var synthesisRequest = new SynthesisRequest
+            {
+                Text = request.Text,
+                VoiceName = request.Voice,
+                RequestId = request.SessionId,
+                Speed = request.SpeechStyle != null ? double.Parse(request.SpeechStyle.Rate) : 1.0,
+                Pitch = request.SpeechStyle != null ? (request.SpeechStyle.Pitch.Contains("%") 
+                    ? 1.0 + (double.Parse(request.SpeechStyle.Pitch.Replace("%", "").Replace("+", "")) / 100.0)
+                    : 1.0) : 1.0
+            };
+
+            var result = await SynthesizeAsync(synthesisRequest);
+
+            return new AudioResult
+            {
+                Success = true,
+                AudioUrl = result.AudioUrl,
+                AudioData = result.AudioData,
+                DurationMs = result.Duration,
+                FromCache = false // Could check if it was from cache
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating speech");
+            return new AudioResult
+            {
+                Success = false,
+                AudioUrl = string.Empty
+            };
+        }
+    }
+
+    public async Task<List<Voice>> GetAvailableVoicesAsync(string language)
+    {
+        var profiles = await _personalityService.GetAllProfilesAsync();
+        return profiles.Values
+            .Where(p => p.Language.StartsWith(language))
+            .Select(p => new Voice
+            {
+                Name = p.NeuralVoiceName,
+                DisplayName = p.DisplayName,
+                Language = p.Language,
+                Gender = p.Gender
+            })
+            .ToList();
     }
 
     public void Dispose()

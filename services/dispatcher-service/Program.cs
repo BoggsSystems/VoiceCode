@@ -2,14 +2,14 @@ using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Identity.Web;
 using Serilog;
+using StackExchange.Redis;
+using Azure.Messaging.ServiceBus;
 using VoiceCode.DispatcherService.Configuration;
 using VoiceCode.DispatcherService.Hubs;
 using VoiceCode.DispatcherService.Middleware;
 using VoiceCode.DispatcherService.Services;
 using VoiceCode.Common.Interfaces;
 using Azure.Identity;
-using StackExchange.Redis;
-using Azure.Messaging.ServiceBus;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -139,7 +139,6 @@ try
     // Add health checks
     builder.Services.AddHealthChecks()
         .AddRedis(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379", name: "redis")
-        .AddSignalRHub<VoiceHub>("voice_hub")
         .AddCheck<ServiceHealthCheck>("services");
 
     // Add CORS

@@ -63,7 +63,7 @@ public class RateLimitingMiddleware
         {
             // Add to blocked list temporarily
             var blockKey = $"ratelimit:blocked:{userId}";
-            await _cache.SetAsync(blockKey, true, TimeSpan.FromMinutes(5));
+            await _cache.SetAsync(blockKey, "blocked", TimeSpan.FromMinutes(5));
             return false;
         }
 

@@ -89,8 +89,8 @@ public class MetricsController : ControllerBase
                 },
                 messages = new
                 {
-                    total = metrics.GetValueOrDefault("messages.audio.count", 0L) + 
-                           metrics.GetValueOrDefault("messages.text.count", 0L),
+                    total = Convert.ToInt64(metrics.GetValueOrDefault("messages.audio.count", 0L)) + 
+                           Convert.ToInt64(metrics.GetValueOrDefault("messages.text.count", 0L)),
                     audio = metrics.GetValueOrDefault("messages.audio.count", 0),
                     text = metrics.GetValueOrDefault("messages.text.count", 0)
                 },

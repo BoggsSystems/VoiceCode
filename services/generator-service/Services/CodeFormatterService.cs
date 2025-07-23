@@ -97,7 +97,7 @@ public class CodeFormatterService : ICodeFormatter
             {
                 // No indent change for single-line arrow functions
             }
-            else if (trimmed.EndsWith('=>'))
+            else if (trimmed.EndsWith("=>"))
             {
                 indentLevel++;
             }

@@ -1,4 +1,5 @@
 using VoiceCode.Common.Enums;
+using VoiceCode.Common.DTOs;
 
 namespace VoiceCode.Common.Models;
 
@@ -19,10 +20,16 @@ public class UserPreferences
     public string PreferredLanguage { get; set; } = "C#";
     public string CodingStyle { get; set; } = "Clean";
     public string PreferredIDE { get; set; } = "VSCode";
+    public string IndentationStyle { get; set; } = "spaces";
+    public int IndentationSize { get; set; } = 4;
+    public bool PreferExplicitTypes { get; set; } = true;
+    public bool PreferAsyncMethods { get; set; } = true;
     public VoiceSettings VoiceSettings { get; set; } = new();
     public NotificationSettings NotificationSettings { get; set; } = new();
     public List<string> AllowedRepositories { get; set; } = new();
     public Dictionary<string, string> CustomSettings { get; set; } = new();
+    public DTOs.PersonalityProfile Personality { get; set; } = DTOs.PersonalityProfile.FriendlyAssistant;
+    public string OutputFormat { get; set; } = "audio-16khz-128kbitrate-mono-mp3";
 }
 
 public class VoiceSettings

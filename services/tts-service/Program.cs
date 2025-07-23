@@ -4,10 +4,12 @@ using Serilog;
 using VoiceCode.TTSService.Configuration;
 using VoiceCode.TTSService.Middleware;
 using VoiceCode.TTSService.Services;
+using VoiceCode.TTSService.Services.Interfaces;
 using VoiceCode.Common.Interfaces;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using StackExchange.Redis;
+using Azure.Extensions.AspNetCore.Configuration.Secrets;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -78,8 +80,10 @@ try
     builder.Services.Configure<VoiceOptions>(builder.Configuration.GetSection("Voice"));
 
     // Add services
-    builder.Services.AddScoped<ITTSService, TextToSpeechService>();
-    builder.Services.AddScoped<IAudioStorageService, AudioStorageService>();
+    builder.Services.AddScoped<VoiceCode.TTSService.Services.Interfaces.ITTSService, TextToSpeechService>();
+    builder.Services.AddScoped<VoiceCode.Common.Interfaces.ITTSService, TextToSpeechService>();
+    builder.Services.AddScoped<VoiceCode.TTSService.Services.Interfaces.IAudioStorageService, AudioStorageService>();
+    builder.Services.AddScoped<VoiceCode.Common.Interfaces.IAudioStorageService, AudioStorageService>();
     builder.Services.AddSingleton<ICacheService, RedisCacheService>();
     builder.Services.AddSingleton<IVoicePersonalityService, VoicePersonalityService>();
     builder.Services.AddSingleton<ISSMLBuilder, SSMLBuilderService>();

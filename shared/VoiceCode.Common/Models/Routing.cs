@@ -13,17 +13,4 @@ public class ConversationTurn
     public Dictionary<string, object> Metadata { get; set; } = new();
 }
 
-public enum IntentCategory
-{
-    CodeGeneration,
-    CodeModification,
-    CodeExplanation,
-    Debugging,
-    Testing,
-    Documentation,
-    ProjectManagement,
-    Navigation,
-    SystemCommand,
-    Conversation,
-    Unknown
-}
+// IntentCategory enum moved to VoiceCode.Common.Enums namespace

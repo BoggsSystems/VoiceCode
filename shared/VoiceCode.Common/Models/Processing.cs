@@ -61,10 +61,16 @@ public class UserSession
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string UserId { get; set; } = string.Empty;
     public string SessionToken { get; set; } = string.Empty;
+    public string ConnectionId { get; set; } = string.Empty; // SignalR connection ID
     public DateTime CreatedAt { get; set; }
+    public DateTime StartTime { get; set; } = DateTime.UtcNow;
     public DateTime LastActivityAt { get; set; }
+    public DateTime LastActivity { get; set; } = DateTime.UtcNow; // Alias for LastActivityAt
+    public DateTime? EndTime { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public SessionState State { get; set; }
+    public UserContext Context { get; set; } = new();
+    public int MessageCount { get; set; } = 0;
     public Dictionary<string, object> Data { get; set; } = new();
     public List<string> ActiveConnections { get; set; } = new();
 }
@@ -75,6 +81,7 @@ public enum SessionState
     Idle,
     Suspended,
     Expired,
-    Terminated
+    Terminated,
+    Ended
 }
 

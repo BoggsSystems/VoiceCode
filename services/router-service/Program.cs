@@ -8,6 +8,7 @@ using VoiceCode.Common.Interfaces;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using StackExchange.Redis;
+using Azure.Extensions.AspNetCore.Configuration.Secrets;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -83,7 +84,7 @@ try
     builder.Services.AddSingleton<IIntentClassifier, IntentClassifierService>();
     builder.Services.AddSingleton<IContextManager, ContextManagerService>();
     builder.Services.AddSingleton<IPromptEnhancer, PromptEnhancerService>();
-    builder.Services.AddSingleton<IQueueService, ServiceBusQueueService>();
+    builder.Services.AddSingleton<VoiceCode.RouterService.Services.IQueueService, ServiceBusQueueService>();
     builder.Services.AddHostedService<IntentModelTrainingService>();
 
     // Add health checks

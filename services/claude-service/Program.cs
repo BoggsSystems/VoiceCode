@@ -4,9 +4,11 @@ using Serilog;
 using VoiceCode.ClaudeService.Configuration;
 using VoiceCode.ClaudeService.Middleware;
 using VoiceCode.ClaudeService.Services;
+using VoiceCode.ClaudeService.HealthChecks;
 using VoiceCode.Common.Interfaces;
 using Azure.Identity;
 using StackExchange.Redis;
+using Azure.Extensions.AspNetCore.Configuration.Secrets;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()

@@ -1,6 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.DTOs;
+using VoiceCode.Common.Interfaces;
+using VoiceCode.Common.Enums;
 using VoiceCode.DispatcherService.Hubs;
 
 namespace VoiceCode.DispatcherService.Services;

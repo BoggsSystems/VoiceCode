@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Identity.Web.Resource;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.Enums;
 using VoiceCode.DispatcherService.Services;
 
 namespace VoiceCode.DispatcherService.Hubs;

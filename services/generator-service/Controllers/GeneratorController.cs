@@ -33,7 +33,7 @@ public class GeneratorController : ControllerBase
     }
 
     [HttpPost("generate")]
-    public async Task<ActionResult<GeneratedFiles>> GenerateFiles([FromBody] CodeGenerationInput input)
+    public async Task<ActionResult<Common.Models.GeneratedFiles>> GenerateFiles([FromBody] CodeGenerationInput input)
     {
         var requestId = Guid.NewGuid().ToString();
         using var activity = System.Diagnostics.Activity.Current;

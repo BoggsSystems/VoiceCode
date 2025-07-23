@@ -10,6 +10,7 @@ public class ClaudeRequest
     public int MaxTokens { get; set; } = 4096;
     public double Temperature { get; set; } = 0.7;
     public string Model { get; set; } = "claude-3-opus-20240229";
+    public string? SessionId { get; set; }
     public List<ClaudeMessage> Messages { get; set; } = new();
     public Dictionary<string, object> Context { get; set; } = new();
 }
@@ -33,6 +34,9 @@ public class ClaudeResponse
     public int OutputTokens { get; set; }
     public DateTime ProcessedAt { get; set; }
     public TimeSpan ProcessingTime { get; set; }
+    public bool Success { get; set; } = true;
+    public string? Error { get; set; }
+    public VoiceResponseData? VoiceResponse { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new();
     public List<ClaudeCodeBlock> CodeBlocks { get; set; } = new();
 }
@@ -44,4 +48,11 @@ public class ClaudeCodeBlock
     public string? FileName { get; set; }
     public int StartLine { get; set; }
     public int EndLine { get; set; }
+}
+
+public class VoiceResponseData
+{
+    public string Text { get; set; } = string.Empty;
+    public string? Emotion { get; set; }
+    public bool IncludeCodeSummary { get; set; } = true;
 }
