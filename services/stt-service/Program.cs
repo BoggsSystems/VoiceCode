@@ -100,6 +100,7 @@ try
 
     // Add services
     builder.Services.AddScoped<ISTTService, SpeechToTextService>();
+    builder.Services.AddSingleton<IStreamingSTTService, StreamingSpeechToTextService>();
     builder.Services.AddScoped<IAudioStorageService, AudioStorageService>();
 
     // Add health checks

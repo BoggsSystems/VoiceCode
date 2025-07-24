@@ -11,6 +11,7 @@ namespace VoiceCode.DispatcherService.Services;
 public interface IServiceRouter
 {
     Task<TranscriptionResult> SendToSTTAsync(AudioMessage audio, string sessionId);
+    Task<TranscriptionResult> ProcessStreamingAudioAsync(string sessionId, byte[] audioData, int sampleRate);
     Task<RoutingResult> SendToRouterAsync(string text, UserSession session);
     Task<ClaudeResponse> SendToClaudeAsync(ClaudeRequest request, string sessionId);
     Task<GeneratedFiles> SendToGeneratorAsync(CodeGenerationInput input, string sessionId);
@@ -54,6 +55,39 @@ public class ServiceRouter : IServiceRouter
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending to STT service");
+            return new TranscriptionResult
+            {
+                Success = false,
+                Error = ex.Message
+            };
+        }
+    }
+
+    public async Task<TranscriptionResult> ProcessStreamingAudioAsync(string sessionId, byte[] audioData, int sampleRate)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("STTService");
+            
+            var request = new
+            {
+                audioData = Convert.ToBase64String(audioData),
+                format = "pcm",
+                sampleRate = sampleRate,
+                language = "en-US",
+                sessionId = sessionId,
+                isStreaming = true
+            };
+
+            var response = await client.PostAsJsonAsync("/api/transcription/transcribe-stream", request);
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync<TranscriptionResult>();
+            return result ?? new TranscriptionResult { Success = false, Error = "No response from STT service" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing streaming audio");
             return new TranscriptionResult
             {
                 Success = false,

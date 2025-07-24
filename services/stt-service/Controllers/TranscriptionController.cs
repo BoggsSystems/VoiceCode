@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Web.Resource;
 using VoiceCode.Common.Interfaces;
 using VoiceCode.Common.Models;
+using VoiceCode.STTService.Services;
 
 namespace VoiceCode.STTService.Controllers;
 
@@ -13,17 +14,20 @@ namespace VoiceCode.STTService.Controllers;
 public class TranscriptionController : ControllerBase
 {
     private readonly ISTTService _sttService;
+    private readonly IStreamingSTTService _streamingSTTService;
     private readonly IAudioStorageService _audioStorage;
     private readonly ICacheService _cache;
     private readonly ILogger<TranscriptionController> _logger;
 
     public TranscriptionController(
         ISTTService sttService,
+        IStreamingSTTService streamingSTTService,
         IAudioStorageService audioStorage,
         ICacheService cache,
         ILogger<TranscriptionController> logger)
     {
         _sttService = sttService;
+        _streamingSTTService = streamingSTTService;
         _audioStorage = audioStorage;
         _cache = cache;
         _logger = logger;
@@ -110,8 +114,27 @@ public class TranscriptionController : ControllerBase
         try
         {
             var audioData = Convert.FromBase64String(request.AudioData);
-            var result = await _sttService.TranscribeAsync(audioData, request.Language ?? "en-US");
-            return Ok(result);
+            
+            // For streaming requests, handle them differently
+            if (request.IsStreaming)
+            {
+                // Ensure session exists
+                if (string.IsNullOrEmpty(request.SessionId))
+                {
+                    request.SessionId = Guid.NewGuid().ToString();
+                    await _streamingSTTService.StartStreamingSessionAsync(request.SessionId, request.Language ?? "en-US");
+                }
+                
+                // Process audio chunk
+                var result = await _streamingSTTService.ProcessAudioChunkAsync(request.SessionId, audioData);
+                return Ok(result);
+            }
+            else
+            {
+                // Non-streaming request - process normally
+                var result = await _sttService.TranscribeAsync(audioData, request.Language ?? "en-US");
+                return Ok(result);
+            }
         }
         catch (FormatException)
         {
@@ -149,6 +172,8 @@ public class TranscribeStreamRequest
 {
     public string AudioData { get; set; } = string.Empty;
     public string? Language { get; set; }
+    public string? SessionId { get; set; }
+    public bool IsStreaming { get; set; }
 }
 
 public class TranscriptionStatus

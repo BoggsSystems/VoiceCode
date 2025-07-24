@@ -3,10 +3,12 @@ import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { useDirectVoiceRecording } from '../../hooks/useDirectVoiceRecording';
 import { useAudioPlayback } from '../../hooks/useAudioPlayback';
 import VoiceRecorder from '../../components/Voice/VoiceRecorder/VoiceRecorder';
+import { StreamingVoiceRecorder } from '../../components/Voice/StreamingVoiceRecorder';
 import AudioVisualizer from '../../components/Voice/AudioVisualizer/AudioVisualizer';
 import TranscriptionDisplay from '../../components/Voice/TranscriptionDisplay/TranscriptionDisplay';
 import ChatMessages from '../../components/Chat/ChatMessages/ChatMessages';
 import { createConversation } from '../../store/slices/chatSlice';
+import { isFeatureEnabled } from '../../config/features';
 import './VoiceChat.css';
 
 const VoiceChat: React.FC = () => {
@@ -18,6 +20,7 @@ const VoiceChat: React.FC = () => {
     isProcessing,
     audioLevel,
     currentTranscript,
+    partialTranscript,
     recognitionResults,
     error: voiceError,
   } = useAppSelector((state) => state.voice);
@@ -104,25 +107,31 @@ const VoiceChat: React.FC = () => {
         {/* Voice Controls Section */}
         <div className="voice-controls">
           <div className="voice-recorder-container">
-            <VoiceRecorder
-              isRecording={isDirectRecording}
-              isProcessing={isDirectProcessing}
-              audioLevel={audioLevel}
-              onStartRecording={handleStartRecording}
-              onStopRecording={handleStopRecording}
-              disabled={false}
-              status={getRecorderStatus()}
-            />
-            
-            <div className="voice-status">
-              <p className="status-message">{getStatusMessage()}</p>
-              {voiceError && (
-                <p className="error-message">
-                  <i className="bi bi-exclamation-triangle"></i>
-                  {voiceError}
-                </p>
-              )}
-            </div>
+            {isFeatureEnabled('enableStreamingAudio') ? (
+              <StreamingVoiceRecorder />
+            ) : (
+              <>
+                <VoiceRecorder
+                  isRecording={isDirectRecording}
+                  isProcessing={isDirectProcessing}
+                  audioLevel={audioLevel}
+                  onStartRecording={handleStartRecording}
+                  onStopRecording={handleStopRecording}
+                  disabled={false}
+                  status={getRecorderStatus()}
+                />
+                
+                <div className="voice-status">
+                  <p className="status-message">{getStatusMessage()}</p>
+                  {voiceError && (
+                    <p className="error-message">
+                      <i className="bi bi-exclamation-triangle"></i>
+                      {voiceError}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Audio Visualizer */}

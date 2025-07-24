@@ -27,6 +27,12 @@ public class TranscriptionResult
     public string? AudioUrl { get; set; }
     public DateTime? RequestedAt { get; set; }
     public string? UserId { get; set; }
+    
+    // Streaming-specific properties
+    public string? SessionId { get; set; }
+    public bool IsFinal { get; set; } = true;
+    public long? AudioSizeBytes { get; set; }
+    public double? Duration { get; set; }
 }
 
 public class TranscriptionAlternative
