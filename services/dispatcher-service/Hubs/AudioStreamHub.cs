@@ -21,6 +21,7 @@ namespace VoiceCode.DispatcherService.Hubs
         private readonly ISessionManager _sessionManager;
         private readonly IServiceRouter _serviceRouter;
         private readonly IQueueDispatcher _queueDispatcher;
+        private readonly IVADService _vadService;
         private static readonly ConcurrentDictionary<string, AudioStreamSession> _streamSessions = new();
         private static readonly ConcurrentDictionary<string, Timer> _heartbeatTimers = new();
 
@@ -28,12 +29,14 @@ namespace VoiceCode.DispatcherService.Hubs
             ILogger<AudioStreamHub> logger,
             ISessionManager sessionManager,
             IServiceRouter serviceRouter,
-            IQueueDispatcher queueDispatcher)
+            IQueueDispatcher queueDispatcher,
+            IVADService vadService)
         {
             _logger = logger;
             _sessionManager = sessionManager;
             _serviceRouter = serviceRouter;
             _queueDispatcher = queueDispatcher;
+            _vadService = vadService;
         }
 
         public override async Task OnConnectedAsync()
@@ -212,7 +215,72 @@ namespace VoiceCode.DispatcherService.Hubs
             var payload = JsonSerializer.Deserialize<AudioDataPayload>(message.Payload.ToString());
             
             session.LastSequenceNumber++;
-            session.AudioBuffer.Add(payload);
+            
+            // Check for VAD metadata from client
+            var clientVadEnabled = false;
+            var clientVadState = VADState.Idle;
+            
+            if (payload is AudioDataPayloadWithVAD vadPayload && vadPayload.Metadata != null)
+            {
+                clientVadEnabled = vadPayload.Metadata.ContainsKey("vadEnabled") && 
+                                 (bool)vadPayload.Metadata["vadEnabled"];
+                if (vadPayload.Metadata.ContainsKey("vadState"))
+                {
+                    Enum.TryParse<VADState>(vadPayload.Metadata["vadState"].ToString(), out clientVadState);
+                }
+            }
+            
+            // Perform server-side VAD validation if enabled
+            if (session.VADEnabled || clientVadEnabled)
+            {
+                var vadResult = _vadService.ProcessAudioFrame(
+                    session.SessionId, 
+                    payload.AudioData, 
+                    payload.SampleRate);
+                
+                // Send VAD result to client
+                await Clients.Caller.SendAsync("VADResult", new
+                {
+                    sessionId = session.SessionId,
+                    serverState = vadResult.State.ToString(),
+                    clientState = clientVadState.ToString(),
+                    confidence = vadResult.Confidence,
+                    energy = vadResult.Energy,
+                    timestamp = DateTime.UtcNow
+                });
+                
+                // Apply false positive reduction
+                if (clientVadEnabled && session.VADEnabled)
+                {
+                    // Only process audio if both client and server agree on speech
+                    if (clientVadState == VADState.Speech && vadResult.State == VADState.Speech)
+                    {
+                        session.AudioBuffer.Add(payload);
+                    }
+                    else if (vadResult.State == VADState.Silence && session.AudioBuffer.Count > 0)
+                    {
+                        // Process any buffered audio when silence is detected
+                        await ProcessBufferedAudio(session);
+                    }
+                }
+                else
+                {
+                    // Use server VAD only
+                    if (vadResult.State == VADState.Speech || vadResult.State == VADState.MaybeSpeech)
+                    {
+                        session.AudioBuffer.Add(payload);
+                    }
+                    else if (vadResult.State == VADState.Silence && session.AudioBuffer.Count > 0)
+                    {
+                        await ProcessBufferedAudio(session);
+                    }
+                }
+            }
+            else
+            {
+                // No VAD - process all audio
+                session.AudioBuffer.Add(payload);
+            }
             
             await Clients.Caller.SendAsync("AudioChunkAcknowledged", new AcknowledgmentPayload
             {
@@ -220,6 +288,7 @@ namespace VoiceCode.DispatcherService.Hubs
                 ProcessingLatency = TimeSpan.FromMilliseconds(5)
             });
 
+            // Process buffered audio based on time or buffer size
             if (session.AudioBuffer.Count >= 10 || 
                 (DateTime.UtcNow - session.LastProcessTime).TotalMilliseconds >= 1000)
             {
@@ -403,6 +472,7 @@ namespace VoiceCode.DispatcherService.Hubs
         public DateTime StreamStartTime { get; set; }
         public bool IsStreaming { get; set; }
         public bool IsPaused { get; set; }
+        public bool VADEnabled { get; set; }
         public long LastSequenceNumber { get; set; }
         public DateTime LastProcessTime { get; set; }
         public AudioStreamConfig Config { get; set; }

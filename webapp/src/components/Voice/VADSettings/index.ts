@@ -1,0 +1,1 @@
+export { VADSettings } from './VADSettings';
