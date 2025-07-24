@@ -127,6 +127,7 @@ try
     builder.Services.AddSingleton<IQueueDispatcher, QueueDispatcher>();
     builder.Services.AddSingleton<IServiceRouter, ServiceRouter>();
     builder.Services.AddSingleton<IMetricsService, MetricsService>();
+    builder.Services.AddSingleton<IVADService, VADService>();
     builder.Services.AddHostedService<QueueProcessorService>();
     builder.Services.AddHostedService<SessionCleanupService>();
 

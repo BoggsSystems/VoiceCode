@@ -4,6 +4,7 @@ import { useDirectVoiceRecording } from '../../hooks/useDirectVoiceRecording';
 import { useAudioPlayback } from '../../hooks/useAudioPlayback';
 import VoiceRecorder from '../../components/Voice/VoiceRecorder/VoiceRecorder';
 import { StreamingVoiceRecorder } from '../../components/Voice/StreamingVoiceRecorder';
+import { VADStreamingRecorder } from '../../components/Voice/VADStreamingRecorder';
 import AudioVisualizer from '../../components/Voice/AudioVisualizer/AudioVisualizer';
 import TranscriptionDisplay from '../../components/Voice/TranscriptionDisplay/TranscriptionDisplay';
 import ChatMessages from '../../components/Chat/ChatMessages/ChatMessages';
@@ -107,7 +108,9 @@ const VoiceChat: React.FC = () => {
         {/* Voice Controls Section */}
         <div className="voice-controls">
           <div className="voice-recorder-container">
-            {isFeatureEnabled('enableStreamingAudio') ? (
+            {isFeatureEnabled('enableVAD') && isFeatureEnabled('enableStreamingAudio') ? (
+              <VADStreamingRecorder />
+            ) : isFeatureEnabled('enableStreamingAudio') ? (
               <StreamingVoiceRecorder />
             ) : (
               <>

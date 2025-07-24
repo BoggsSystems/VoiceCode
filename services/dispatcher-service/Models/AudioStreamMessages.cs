@@ -40,6 +40,11 @@ namespace VoiceCode.DispatcherService.Models
         public TimeSpan Duration { get; set; }
     }
 
+    public class AudioDataPayloadWithVAD : AudioDataPayload
+    {
+        public Dictionary<string, object> Metadata { get; set; }
+    }
+
     public class ControlPayload
     {
         public ControlCommand Command { get; set; }

@@ -1,0 +1,1 @@
+export { VADIndicator } from './VADIndicator';
