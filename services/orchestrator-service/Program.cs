@@ -36,13 +36,21 @@ builder.Services.AddHttpClient("ClaudeService", client =>
 
 // Register services
 builder.Services.AddSingleton<ResponseTranslationService>();
-builder.Services.AddSingleton<IWorkerManagementService, WorkerManagementService>();
+
+// Register Worker Pool Service
+builder.Services.AddSingleton<IWorkerPoolService, WorkerPoolService>();
+builder.Services.AddHostedService<WorkerPoolService>(provider => 
+    (WorkerPoolService)provider.GetRequiredService<IWorkerPoolService>());
+
+// Register Enhanced Worker Management Service
+builder.Services.AddSingleton<IWorkerManagementService, EnhancedWorkerManagementService>();
 
 // Register HTTP client factory
 builder.Services.AddHttpClient();
 
 // Health checks
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<WorkerPoolHealthCheck>("worker_pool");
 
 var app = builder.Build();
 
