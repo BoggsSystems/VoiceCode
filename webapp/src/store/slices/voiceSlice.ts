@@ -4,6 +4,7 @@ export interface VoiceState {
   isRecording: boolean;
   isProcessing: boolean;
   currentTranscript: string | null;
+  partialTranscript: string | null;
   audioLevel: number;
   error: string | null;
   permissionGranted: boolean;
@@ -34,6 +35,7 @@ const initialState: VoiceState = {
   isRecording: false,
   isProcessing: false,
   currentTranscript: null,
+  partialTranscript: null,
   audioLevel: 0,
   error: null,
   permissionGranted: false,
@@ -49,6 +51,18 @@ const voiceSlice = createSlice({
   name: 'voice',
   initialState,
   reducers: {
+    setIsRecording: (state, action: PayloadAction<boolean>) => {
+      state.isRecording = action.payload;
+      if (action.payload) {
+        state.error = null;
+      }
+    },
+    setTranscription: (state, action: PayloadAction<string>) => {
+      state.currentTranscript = action.payload;
+    },
+    setPartialTranscription: (state, action: PayloadAction<string>) => {
+      state.partialTranscript = action.payload;
+    },
     startRecording: (state) => {
       state.isRecording = true;
       state.error = null;
@@ -132,6 +146,9 @@ const voiceSlice = createSlice({
 });
 
 export const {
+  setIsRecording,
+  setTranscription,
+  setPartialTranscription,
   startRecording,
   stopRecording,
   setProcessing,

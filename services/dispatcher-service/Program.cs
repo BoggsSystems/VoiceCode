@@ -134,25 +134,25 @@ try
     builder.Services.AddHttpClient("STTService", (sp, client) =>
     {
         var endpoints = sp.GetRequiredService<IConfiguration>().GetSection("ServiceEndpoints").Get<ServiceEndpoints>();
-        client.BaseAddress = new Uri(endpoints?.STTService ?? "http://localhost:5001");
+        client.BaseAddress = new Uri(endpoints?.STTService ?? "http://localhost:5004");
     });
 
     builder.Services.AddHttpClient("ClaudeService", (sp, client) =>
     {
         var endpoints = sp.GetRequiredService<IConfiguration>().GetSection("ServiceEndpoints").Get<ServiceEndpoints>();
-        client.BaseAddress = new Uri(endpoints?.ClaudeService ?? "http://localhost:5002");
+        client.BaseAddress = new Uri(endpoints?.ClaudeService ?? "http://localhost:5003");
     });
 
     builder.Services.AddHttpClient("RouterService", (sp, client) =>
     {
         var endpoints = sp.GetRequiredService<IConfiguration>().GetSection("ServiceEndpoints").Get<ServiceEndpoints>();
-        client.BaseAddress = new Uri(endpoints?.RouterService ?? "http://localhost:5003");
+        client.BaseAddress = new Uri(endpoints?.RouterService ?? "http://localhost:5001");
     });
 
     builder.Services.AddHttpClient("GeneratorService", (sp, client) =>
     {
         var endpoints = sp.GetRequiredService<IConfiguration>().GetSection("ServiceEndpoints").Get<ServiceEndpoints>();
-        client.BaseAddress = new Uri(endpoints?.GeneratorService ?? "http://localhost:5004");
+        client.BaseAddress = new Uri(endpoints?.GeneratorService ?? "http://localhost:5006");
     });
 
     builder.Services.AddHttpClient("TTSService", (sp, client) =>
@@ -206,6 +206,7 @@ try
 
     app.MapControllers();
     app.MapHub<VoiceHub>("/hubs/voice");
+    app.MapHub<AudioStreamHub>("/hubs/audiostream");
     app.MapHealthChecks("/health");
     app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {

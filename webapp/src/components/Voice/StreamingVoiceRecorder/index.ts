@@ -1,0 +1,1 @@
+export { StreamingVoiceRecorder } from './StreamingVoiceRecorder';
