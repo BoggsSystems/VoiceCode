@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # Orchestrator Service
+  orchestrator:
+    build:
+      context: .
+      dockerfile: services/orchestrator-service/Dockerfile
+    ports:
+      - "5010:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ServiceEndpoints__WorkerService=http://worker:80
+      - AZURE_SERVICE_BUS_CONNECTION_STRING=${AZURE_SERVICE_BUS_CONNECTION_STRING}
+      - Orchestration__EnableWorkerPool=true
+      - Orchestration__WorkerEndpoints__0=http://worker:80
+    depends_on:
+      - worker
+    networks:
+      - voicecode-mcp
+
+  # Worker Service with MCP
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker-service/Dockerfile
+    ports:
+      - "5006:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - Worker__ClaudeApiKey=${ANTHROPIC_API_KEY}
+      - Worker__WorkspaceBasePath=/workspaces
+      - AZURE_SERVICE_BUS_CONNECTION_STRING=${AZURE_SERVICE_BUS_CONNECTION_STRING}
+    volumes:
+      - worker-workspaces:/workspaces
+    networks:
+      - voicecode-mcp
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - voicecode-mcp
+
+volumes:
+  worker-workspaces:
+
+networks:
+  voicecode-mcp:
+    driver: bridge
