@@ -58,32 +58,58 @@ try
     // Add authentication
     builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAd");
 
-    // Add SignalR with Redis backplane
-    builder.Services.AddSignalR(options =>
+    // Add Redis cache with fallback to in-memory
+    var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+    var useRedis = false;
+
+    if (!string.IsNullOrEmpty(redisConnectionString) && 
+        redisConnectionString != "localhost:6379" && 
+        redisConnectionString != "")
+    {
+        try
+        {
+            var redis = ConnectionMultiplexer.Connect(redisConnectionString + ",abortConnect=false,connectTimeout=5000");
+            builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+            builder.Services.AddSingleton<ICacheService, RedisCacheService>();
+            useRedis = true;
+            Log.Information("Successfully connected to Redis");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to connect to Redis, falling back to in-memory cache");
+        }
+    }
+
+    if (!useRedis)
+    {
+        builder.Services.AddSingleton<ICacheService, InMemoryCacheService>();
+        Log.Information("Using in-memory cache");
+    }
+
+    // Add SignalR with optional Redis backplane
+    var signalRBuilder = builder.Services.AddSignalR(options =>
     {
         options.EnableDetailedErrors = builder.Environment.IsDevelopment();
         options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
         options.MaximumReceiveMessageSize = 1024 * 1024; // 1MB
-    })
-    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379", options =>
+    });
+
+    if (useRedis)
     {
-        options.Configuration.ChannelPrefix = "VoiceCode";
-    })
-    .AddJsonProtocol(options =>
+        signalRBuilder.AddStackExchangeRedis(redisConnectionString!, options =>
+        {
+            options.Configuration.ChannelPrefix = "VoiceCode";
+        });
+    }
+
+    signalRBuilder.AddJsonProtocol(options =>
     {
         options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
     // Add Application Insights
     builder.Services.AddApplicationInsightsTelemetry();
-
-    // Add Redis cache
-    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-    {
-        var configuration = sp.GetRequiredService<IConfiguration>();
-        return ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis") ?? "localhost:6379");
-    });
 
     // Add Service Bus
     builder.Services.AddSingleton(sp =>
@@ -100,7 +126,6 @@ try
     builder.Services.AddSingleton<ISessionManager, SessionManager>();
     builder.Services.AddSingleton<IQueueDispatcher, QueueDispatcher>();
     builder.Services.AddSingleton<IServiceRouter, ServiceRouter>();
-    builder.Services.AddSingleton<ICacheService, RedisCacheService>();
     builder.Services.AddSingleton<IMetricsService, MetricsService>();
     builder.Services.AddHostedService<QueueProcessorService>();
     builder.Services.AddHostedService<SessionCleanupService>();
@@ -137,9 +162,14 @@ try
     });
 
     // Add health checks
-    builder.Services.AddHealthChecks()
-        .AddRedis(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379", name: "redis")
-        .AddCheck<ServiceHealthCheck>("services");
+    var healthChecks = builder.Services.AddHealthChecks();
+    
+    if (useRedis)
+    {
+        healthChecks.AddRedis(redisConnectionString!, name: "redis");
+    }
+    
+    healthChecks.AddCheck<ServiceHealthCheck>("services");
 
     // Add CORS
     builder.Services.AddCors(options =>

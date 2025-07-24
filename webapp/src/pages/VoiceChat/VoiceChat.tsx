@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
-import { useVoiceRecording } from '../../hooks/useVoiceRecording';
+import { useDirectVoiceRecording } from '../../hooks/useDirectVoiceRecording';
 import { useAudioPlayback } from '../../hooks/useAudioPlayback';
 import VoiceRecorder from '../../components/Voice/VoiceRecorder/VoiceRecorder';
 import AudioVisualizer from '../../components/Voice/AudioVisualizer/AudioVisualizer';
@@ -35,7 +35,9 @@ const VoiceChat: React.FC = () => {
     stopRecording,
     requestPermission,
     permissionGranted,
-  } = useVoiceRecording();
+    isRecording: isDirectRecording,
+    isProcessing: isDirectProcessing,
+  } = useDirectVoiceRecording();
 
   const { playAudio, isPlaying } = useAudioPlayback();
 
@@ -68,18 +70,16 @@ const VoiceChat: React.FC = () => {
   };
 
   const getRecorderStatus = () => {
-    if (!connected) return 'disconnected';
+    // Use direct recording for testing (bypassing SignalR)
     if (!permissionGranted) return 'permission-required';
-    if (isRecording) return 'recording';
-    if (isProcessing) return 'processing';
+    if (isDirectRecording) return 'recording';
+    if (isDirectProcessing) return 'processing';
     return 'ready';
   };
 
   const getStatusMessage = () => {
     const status = getRecorderStatus();
     switch (status) {
-      case 'disconnected':
-        return 'Not connected to voice services';
       case 'permission-required':
         return 'Microphone permission required';
       case 'recording':
@@ -105,12 +105,12 @@ const VoiceChat: React.FC = () => {
         <div className="voice-controls">
           <div className="voice-recorder-container">
             <VoiceRecorder
-              isRecording={isRecording}
-              isProcessing={isProcessing}
+              isRecording={isDirectRecording}
+              isProcessing={isDirectProcessing}
               audioLevel={audioLevel}
               onStartRecording={handleStartRecording}
               onStopRecording={handleStopRecording}
-              disabled={!connected || !permissionGranted}
+              disabled={false}
               status={getRecorderStatus()}
             />
             
@@ -126,12 +126,12 @@ const VoiceChat: React.FC = () => {
           </div>
 
           {/* Audio Visualizer */}
-          {(isRecording || isProcessing) && (
+          {(isDirectRecording || isDirectProcessing) && (
             <div className="audio-visualizer-container">
               <AudioVisualizer 
                 audioLevel={audioLevel} 
-                isRecording={isRecording}
-                isProcessing={isProcessing}
+                isRecording={isDirectRecording}
+                isProcessing={isDirectProcessing}
               />
             </div>
           )}
