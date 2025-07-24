@@ -60,12 +60,33 @@ try
     // Add Application Insights
     builder.Services.AddApplicationInsightsTelemetry();
 
-    // Add Redis cache
-    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+    // Add Redis cache with fallback to in-memory
+    var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+    var useRedis = false;
+
+    if (!string.IsNullOrEmpty(redisConnectionString) && 
+        redisConnectionString != "localhost:6379" && 
+        redisConnectionString != "")
     {
-        var configuration = sp.GetRequiredService<IConfiguration>();
-        return ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis") ?? "localhost:6379");
-    });
+        try
+        {
+            var redis = ConnectionMultiplexer.Connect(redisConnectionString + ",abortConnect=false,connectTimeout=5000");
+            builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+            builder.Services.AddSingleton<ICacheService, RedisCacheService>();
+            useRedis = true;
+            Log.Information("Successfully connected to Redis");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to connect to Redis, falling back to in-memory cache");
+        }
+    }
+
+    if (!useRedis)
+    {
+        builder.Services.AddSingleton<ICacheService, InMemoryCacheService>();
+        Log.Information("Using in-memory cache");
+    }
 
     // Add Service Bus client
     builder.Services.AddSingleton<ServiceBusClient>(sp =>
@@ -80,7 +101,6 @@ try
 
     // Add services
     builder.Services.AddScoped<ICodeGenerator, CodeGeneratorService>();
-    builder.Services.AddSingleton<ICacheService, RedisCacheService>();
     builder.Services.AddSingleton<ITemplateEngine, TemplateEngineService>();
     builder.Services.AddSingleton<ICodeValidator, CodeValidatorService>();
     builder.Services.AddSingleton<ICodeFormatter, CodeFormatterService>();
@@ -103,8 +123,12 @@ try
     builder.Services.AddHostedService<QueueProcessorService>();
 
     // Add health checks
-    builder.Services.AddHealthChecks()
-        .AddRedis(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379", name: "redis");
+    var healthChecks = builder.Services.AddHealthChecks();
+    
+    if (useRedis)
+    {
+        healthChecks.AddRedis(redisConnectionString!, name: "redis");
+    }
 
     // Add CORS
     builder.Services.AddCors(options =>

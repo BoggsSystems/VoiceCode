@@ -61,12 +61,33 @@ try
     // Add Application Insights
     builder.Services.AddApplicationInsightsTelemetry();
 
-    // Add Redis cache
-    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+    // Add Redis cache with fallback to in-memory
+    var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+    var useRedis = false;
+
+    if (!string.IsNullOrEmpty(redisConnectionString) && 
+        redisConnectionString != "localhost:6379" && 
+        redisConnectionString != "")
     {
-        var configuration = sp.GetRequiredService<IConfiguration>();
-        return ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis") ?? "localhost:6379");
-    });
+        try
+        {
+            var redis = ConnectionMultiplexer.Connect(redisConnectionString + ",abortConnect=false,connectTimeout=5000");
+            builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+            builder.Services.AddSingleton<ICacheService, RedisCacheService>();
+            useRedis = true;
+            Log.Information("Successfully connected to Redis");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to connect to Redis, falling back to in-memory cache");
+        }
+    }
+
+    if (!useRedis)
+    {
+        builder.Services.AddSingleton<ICacheService, InMemoryCacheService>();
+        Log.Information("Using in-memory cache");
+    }
 
     // Add Azure Blob Storage
     builder.Services.AddSingleton(sp =>
@@ -84,14 +105,18 @@ try
     builder.Services.AddScoped<VoiceCode.Common.Interfaces.ITTSService, TextToSpeechService>();
     builder.Services.AddScoped<VoiceCode.TTSService.Services.Interfaces.IAudioStorageService, AudioStorageService>();
     builder.Services.AddScoped<VoiceCode.Common.Interfaces.IAudioStorageService, AudioStorageService>();
-    builder.Services.AddSingleton<ICacheService, RedisCacheService>();
     builder.Services.AddSingleton<IVoicePersonalityService, VoicePersonalityService>();
     builder.Services.AddSingleton<ISSMLBuilder, SSMLBuilderService>();
 
     // Add health checks
-    builder.Services.AddHealthChecks()
-        .AddRedis(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379", name: "redis")
-        .AddCheck<SpeechServiceHealthCheck>("speech_service");
+    var healthChecks = builder.Services.AddHealthChecks();
+    
+    if (useRedis)
+    {
+        healthChecks.AddRedis(redisConnectionString!, name: "redis");
+    }
+    
+    healthChecks.AddCheck<SpeechServiceHealthCheck>("speech_service");
 
     // Add CORS
     builder.Services.AddCors(options =>
