@@ -20,20 +20,12 @@ public class SSMLBuilderService : ISSMLBuilder
     {
         try
         {
-            XNamespace ns = "http://www.w3.org/2001/10/synthesis";
-            XNamespace mstts = "http://www.w3.org/2001/mstts";
+            // Build simple SSML without namespace prefixes to avoid issues
+            var escapedText = System.Security.SecurityElement.Escape(text);
+            var ssml = $@"<speak version='1.0' xml:lang='{profile.Language}'><voice xml:lang='{profile.Language}' name='{profile.NeuralVoiceName}'>{escapedText}</voice></speak>";
             
-            var ssml = new XDocument(
-                new XDeclaration("1.0", "UTF-8", null),
-                new XElement(ns + "speak",
-                    new XAttribute("version", "1.0"),
-                    new XAttribute(XNamespace.Xml + "lang", profile.Language),
-                    new XAttribute(XNamespace.Xmlns + "mstts", mstts),
-                    BuildVoiceElement(text, profile, emotion, mstts)
-                )
-            );
-
-            return Task.FromResult(ssml.ToString());
+            _logger.LogInformation("Generated SSML: {SSML}", ssml);
+            return Task.FromResult(ssml);
         }
         catch (Exception ex)
         {
@@ -44,7 +36,9 @@ public class SSMLBuilderService : ISSMLBuilder
 
     private XElement BuildVoiceElement(string text, VoiceCode.Common.Models.VoiceProfile profile, string? emotion, XNamespace mstts)
     {
-        var voiceElement = new XElement("voice",
+        XNamespace ns = "http://www.w3.org/2001/10/synthesis";
+        
+        var voiceElement = new XElement(ns + "voice",
             new XAttribute("name", profile.NeuralVoiceName));
 
         // Add style if available
@@ -54,16 +48,14 @@ public class SSMLBuilderService : ISSMLBuilder
             var styleElement = new XElement(mstts + "express-as",
                 new XAttribute("style", style));
 
-            // Add prosody element inside style
-            var prosodyElement = BuildProsodyElement(text, profile.Characteristics);
-            styleElement.Add(prosodyElement);
+            // Add text directly in style element for now
+            styleElement.Add(new XText(ProcessTextForSSML(text)));
             voiceElement.Add(styleElement);
         }
         else
         {
-            // Add prosody directly if no style
-            var prosodyElement = BuildProsodyElement(text, profile.Characteristics);
-            voiceElement.Add(prosodyElement);
+            // Add text directly if no style
+            voiceElement.Add(new XText(ProcessTextForSSML(text)));
         }
 
         return voiceElement;
@@ -71,7 +63,8 @@ public class SSMLBuilderService : ISSMLBuilder
 
     private XElement BuildProsodyElement(string text, VoiceCharacteristics characteristics)
     {
-        var prosodyElement = new XElement("prosody");
+        XNamespace ns = "http://www.w3.org/2001/10/synthesis";
+        var prosodyElement = new XElement(ns + "prosody");
 
         if (characteristics.DefaultSpeed != 1.0)
         {
