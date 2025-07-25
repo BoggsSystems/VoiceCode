@@ -1,6 +1,7 @@
 using Microsoft.CognitiveServices.Speech;
 using Microsoft.CognitiveServices.Speech.Audio;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
 using VoiceCode.Common.Interfaces;
@@ -24,9 +25,11 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
     private readonly ICacheService _cache;
     private readonly IVoicePersonalityService _personalityService;
     private readonly ISSMLBuilder _ssmlBuilder;
-    private readonly SpeechConfig _speechConfig;
+    private readonly SpeechConfig? _speechConfig;
     private readonly SemaphoreSlim _semaphore;
     private readonly AsyncRetryPolicy _retryPolicy;
+    private readonly AzureTTSRestService? _restService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public TextToSpeechService(
         ILogger<TextToSpeechService> logger,
@@ -35,7 +38,9 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
         Interfaces.IAudioStorageService audioStorage,
         ICacheService cache,
         IVoicePersonalityService personalityService,
-        ISSMLBuilder ssmlBuilder)
+        ISSMLBuilder ssmlBuilder,
+        IHttpClientFactory httpClientFactory,
+        ILoggerFactory loggerFactory)
     {
         _logger = logger;
         _speechOptions = speechOptions;
@@ -44,23 +49,38 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
         _cache = cache;
         _personalityService = personalityService;
         _ssmlBuilder = ssmlBuilder;
+        _httpClientFactory = httpClientFactory;
 
-        // Configure Speech SDK
-        if (_speechOptions.Value.UseCustomEndpoint && !string.IsNullOrEmpty(_speechOptions.Value.Endpoint))
+        // Try to configure Speech SDK, but don't fail if it doesn't work
+        try
         {
-            _speechConfig = SpeechConfig.FromEndpoint(
-                new Uri(_speechOptions.Value.Endpoint),
-                _speechOptions.Value.Key);
+            // Configure Speech SDK
+            if (_speechOptions.Value.UseCustomEndpoint && !string.IsNullOrEmpty(_speechOptions.Value.Endpoint))
+            {
+                _speechConfig = SpeechConfig.FromEndpoint(
+                    new Uri(_speechOptions.Value.Endpoint),
+                    _speechOptions.Value.Key);
+            }
+            else
+            {
+                _speechConfig = SpeechConfig.FromSubscription(
+                    _speechOptions.Value.Key,
+                    _speechOptions.Value.Region);
+            }
+
+            _speechConfig.SpeechSynthesisVoiceName = _voiceOptions.Value.DefaultVoice;
+            _speechConfig.SetSpeechSynthesisOutputFormat(GetSpeechSynthesisOutputFormat());
         }
-        else
+        catch (Exception ex)
         {
-            _speechConfig = SpeechConfig.FromSubscription(
-                _speechOptions.Value.Key,
-                _speechOptions.Value.Region);
+            _logger.LogWarning(ex, "Failed to initialize Speech SDK, will use REST API fallback");
+            _speechConfig = null;
         }
 
-        _speechConfig.SpeechSynthesisVoiceName = _voiceOptions.Value.DefaultVoice;
-        _speechConfig.SetSpeechSynthesisOutputFormat(GetSpeechSynthesisOutputFormat());
+        // Initialize REST service as fallback
+        var httpClient = _httpClientFactory.CreateClient("AzureTTS");
+        var restLogger = loggerFactory.CreateLogger<AzureTTSRestService>();
+        _restService = new AzureTTSRestService(httpClient, restLogger, _speechOptions);
 
         _semaphore = new SemaphoreSlim(_speechOptions.Value.MaxConcurrentSynthesis);
 
@@ -256,23 +276,44 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
         {
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                using var synthesizer = new SpeechSynthesizer(_speechConfig);
-                
-                var result = await synthesizer.SpeakSsmlAsync(ssml)
-                    .ConfigureAwait(false);
-
-                if (result.Reason == ResultReason.SynthesizingAudioCompleted)
+                // Try SDK first if available
+                if (_speechConfig != null)
                 {
-                    return result.AudioData;
-                }
-                else if (result.Reason == ResultReason.Canceled)
-                {
-                    var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
-                    throw new TTSException(
-                        $"Speech synthesis canceled: {cancellation.Reason} - {cancellation.ErrorDetails}");
+                    try
+                    {
+                        using var synthesizer = new SpeechSynthesizer(_speechConfig);
+                        
+                        var result = await synthesizer.SpeakSsmlAsync(ssml)
+                            .ConfigureAwait(false);
+
+                        if (result.Reason == ResultReason.SynthesizingAudioCompleted)
+                        {
+                            return result.AudioData;
+                        }
+                        else if (result.Reason == ResultReason.Canceled)
+                        {
+                            var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
+                            throw new TTSException(
+                                $"Speech synthesis canceled: {cancellation.Reason} - {cancellation.ErrorDetails}");
+                        }
+
+                        throw new TTSException("Speech synthesis failed");
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("Failed to initialize platform"))
+                    {
+                        _logger.LogWarning("Speech SDK failed, falling back to REST API");
+                        // Fall through to REST API
+                    }
                 }
 
-                throw new TTSException("Speech synthesis failed");
+                // Use REST API as fallback
+                if (_restService != null)
+                {
+                    _logger.LogInformation("Using REST API for speech synthesis");
+                    return await _restService.SynthesizeSpeechAsync(ssml, profile);
+                }
+
+                throw new TTSException("No TTS service available");
             });
         }
         finally
