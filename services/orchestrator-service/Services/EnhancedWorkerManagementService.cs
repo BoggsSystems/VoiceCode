@@ -49,7 +49,7 @@ namespace VoiceCode.OrchestratorService.Services
             _workerPool = workerPool;
             _options = options.Value;
             _activeTasks = new ConcurrentDictionary<string, TaskExecutionContext>();
-            _parallelExecutionSemaphore = new SemaphoreSlim(_options.MaxConcurrentWorkers ?? 10);
+            _parallelExecutionSemaphore = new SemaphoreSlim(_options.MaxConcurrentWorkers > 0 ? _options.MaxConcurrentWorkers : 10);
 
             // Initialize Service Bus
             var connectionString = Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");

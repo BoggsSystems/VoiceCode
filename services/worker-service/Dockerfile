@@ -12,7 +12,7 @@ RUN apt-get update && \
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["services/worker-service/VoiceCode.WorkerService.csproj", "services/worker-service/"]
-COPY ["services/common/VoiceCode.Common/VoiceCode.Common.csproj", "services/common/VoiceCode.Common/"]
+COPY ["shared/VoiceCode.Common/VoiceCode.Common.csproj", "shared/VoiceCode.Common/"]
 RUN dotnet restore "services/worker-service/VoiceCode.WorkerService.csproj"
 COPY . .
 WORKDIR "/src/services/worker-service"

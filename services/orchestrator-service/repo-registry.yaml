@@ -1,0 +1,118 @@
+# Repository Registry - Maps workers to their assigned repositories
+# This configuration defines which repository each worker owns
+
+repositories:
+  - workerId: worker-1
+    name: "Restaurant POS System"
+    repo: "https://github.com/restaurantchain/pos-system"
+    keywords: 
+      - "restaurant"
+      - "pos" 
+      - "menu"
+      - "inventory"
+      - "dining"
+    description: "Point of sale system for restaurant chain"
+    
+  - workerId: worker-2
+    name: "Law Firm Case Management"
+    repo: "https://github.com/lawfirm/case-management"
+    keywords:
+      - "law"
+      - "legal"
+      - "case"
+      - "billing"
+      - "attorney"
+    description: "Case and client management for law firm"
+    
+  - workerId: worker-3
+    name: "Startup SaaS Platform"
+    repo: "https://github.com/startupx/saas-platform"
+    keywords:
+      - "startup"
+      - "saas"
+      - "platform"
+      - "subscription"
+      - "tenant"
+    description: "Multi-tenant SaaS platform"
+    
+  - workerId: worker-4
+    name: "Bank Mobile App"
+    repo: "https://github.com/localbank/mobile-banking"
+    keywords:
+      - "bank"
+      - "banking"
+      - "financial"
+      - "mobile"
+      - "transactions"
+    description: "Mobile banking application"
+    
+  - workerId: worker-5
+    name: "E-commerce Store"
+    repo: "https://github.com/ecomstore/shopping-platform"  
+    keywords:
+      - "ecommerce"
+      - "store"
+      - "shopping"
+      - "cart"
+      - "products"
+    description: "Online shopping platform"
+    
+  - workerId: worker-6
+    name: "Healthcare Patient Portal"
+    repo: "https://github.com/healthclinic/patient-portal"
+    keywords:
+      - "health"
+      - "clinic"
+      - "patient"
+      - "medical"
+      - "appointment"
+    description: "Patient portal for healthcare clinic"
+    
+  - workerId: worker-7
+    name: "Real Estate Listings"
+    repo: "https://github.com/realestate/property-listings"
+    keywords:
+      - "realestate"
+      - "property"
+      - "listings"
+      - "homes"
+      - "rental"
+    description: "Property listing and management system"
+    
+  - workerId: worker-8
+    name: "School Parent Portal"
+    repo: "https://github.com/schooldistrict/parent-portal"
+    keywords:
+      - "school"
+      - "education"
+      - "parent"
+      - "student"
+      - "grades"
+    description: "Parent-teacher communication portal"
+    
+  - workerId: worker-9
+    name: "Fitness Tracker App"
+    repo: "https://github.com/fitnessapp/workout-tracker"
+    keywords:
+      - "fitness"
+      - "workout"
+      - "exercise"
+      - "health"
+      - "tracker"
+    description: "Workout and fitness tracking application"
+    
+  - workerId: worker-10
+    name: "Nonprofit Donations"
+    repo: "https://github.com/nonprofit/donation-platform"
+    keywords:
+      - "nonprofit"
+      - "donation"
+      - "charity"
+      - "fundraising"
+      - "volunteer"
+    description: "Donation and volunteer management platform"
+
+# Default fallback for unmatched requests
+fallback:
+  strategy: "round-robin"  # or "least-loaded", "random"
+  generic_workers: []      # List of workers that can handle generic tasks

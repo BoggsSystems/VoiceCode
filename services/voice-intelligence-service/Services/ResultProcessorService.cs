@@ -9,7 +9,8 @@ public class ResultProcessorService : BackgroundService
 {
     private readonly ILogger<ResultProcessorService> _logger;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ServiceBusClient _serviceBusClient;
+    private readonly IConfiguration _configuration;
+    private ServiceBusClient? _serviceBusClient;
     private ServiceBusProcessor? _processor;
     private readonly Dictionary<string, List<WorkerResult>> _taskResults = new();
     private readonly Dictionary<string, TaskCompletionSource<VoiceResponse>> _pendingTasks = new();
@@ -21,28 +22,45 @@ public class ResultProcessorService : BackgroundService
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
-        
-        var connectionString = configuration["ServiceBus:ConnectionString"] ?? 
-            Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
-        
-        _serviceBusClient = new ServiceBusClient(connectionString);
+        _configuration = configuration;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _processor = _serviceBusClient.CreateProcessor("worker-results", new ServiceBusProcessorOptions
+        try
         {
-            MaxConcurrentCalls = 5,
-            AutoCompleteMessages = false
-        });
+            // Initialize Service Bus client
+            var connectionString = _configuration["ServiceBus:ConnectionString"] ?? 
+                Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
+            
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                _logger.LogError("Service Bus connection string not found. Result processing disabled.");
+                return;
+            }
+            
+            _logger.LogInformation("Initializing Service Bus client...");
+            _serviceBusClient = new ServiceBusClient(connectionString);
+            
+            _processor = _serviceBusClient.CreateProcessor("worker-results", new ServiceBusProcessorOptions
+            {
+                MaxConcurrentCalls = 5,
+                AutoCompleteMessages = false
+            });
 
-        _processor.ProcessMessageAsync += ProcessWorkerResultAsync;
-        _processor.ProcessErrorAsync += ProcessErrorAsync;
+            _processor.ProcessMessageAsync += ProcessWorkerResultAsync;
+            _processor.ProcessErrorAsync += ProcessErrorAsync;
 
-        await _processor.StartProcessingAsync(stoppingToken);
-        _logger.LogInformation("Result processor started, listening to worker-results queue");
+            await _processor.StartProcessingAsync(stoppingToken);
+            _logger.LogInformation("Result processor started, listening to worker-results queue");
 
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start result processor");
+            throw;
+        }
     }
 
     private async Task ProcessWorkerResultAsync(ProcessMessageEventArgs args)
@@ -59,14 +77,17 @@ public class ResultProcessorService : BackgroundService
                 return;
             }
 
+            var workerId = result.Metadata?.ContainsKey("workerId") == true ? 
+                result.Metadata["workerId"]?.ToString() : "unknown";
             _logger.LogInformation("Processing result for task {TaskId} from worker {WorkerId}", 
-                result.TaskId, result.Metadata?["workerId"]);
+                result.TaskId, workerId);
 
             // Convert to our model
             var workerResult = new WorkerResult
             {
                 TaskId = result.TaskId,
-                WorkerId = result.Metadata?["workerId"]?.ToString() ?? "unknown",
+                WorkerId = result.Metadata?.ContainsKey("workerId") == true ? 
+                    result.Metadata["workerId"]?.ToString() ?? "unknown" : "unknown",
                 Success = result.Success,
                 Output = result.Summary,
                 Error = result.Error ?? "",
@@ -119,7 +140,12 @@ public class ResultProcessorService : BackgroundService
             var ttsQueueService = scope.ServiceProvider.GetRequiredService<ITTSQueueService>();
 
             // Get original command from metadata (this would come from orchestrator in production)
-            var originalCommand = results.FirstOrDefault()?.Metadata?["voiceCommand"]?.ToString() ?? "unknown command";
+            var firstResult = results.FirstOrDefault();
+            var originalCommand = "unknown command";
+            if (firstResult?.Metadata?.ContainsKey("voiceCommand") == true)
+            {
+                originalCommand = firstResult.Metadata["voiceCommand"]?.ToString() ?? "unknown command";
+            }
 
             var synthesisRequest = new SynthesisRequest
             {
@@ -160,7 +186,10 @@ public class ResultProcessorService : BackgroundService
             await _processor.DisposeAsync();
         }
 
-        await _serviceBusClient.DisposeAsync();
+        if (_serviceBusClient != null)
+        {
+            await _serviceBusClient.DisposeAsync();
+        }
         await base.StopAsync(cancellationToken);
     }
 }

@@ -165,8 +165,9 @@ namespace VoiceCode.OrchestratorService.Services
                     var statusResponse = await httpClient.GetAsync($"{worker.Endpoint}/api/worker/status");
                     if (statusResponse.IsSuccessStatusCode)
                     {
-                        var workerStatus = await statusResponse.Content.ReadAsAsync<WorkerStatus>();
-                        worker.CurrentLoad = workerStatus.ActiveWorkers;
+                        var json = await statusResponse.Content.ReadAsStringAsync();
+                        var workerStatus = System.Text.Json.JsonSerializer.Deserialize<WorkerStatus>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        worker.CurrentLoad = workerStatus?.CurrentTaskId != null ? 1 : 0;
                     }
 
                     return new WorkerHealthStatus

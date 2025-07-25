@@ -26,7 +26,7 @@ echo "Deploying to Azure Container Apps..."
 az containerapp create \
     --name $SERVICE_NAME \
     --resource-group $RESOURCE_GROUP \
-    --environment voicecode-cae \
+    --environment voicecode-env \
     --image $ACR_NAME.azurecr.io/voice-intelligence-service:$IMAGE_TAG \
     --target-port 80 \
     --ingress external \
@@ -40,7 +40,7 @@ az containerapp create \
         "OPENAI_API_KEY=secretref:openai-api-key" \
     --secrets \
         "service-bus-connection-string=$(az servicebus namespace authorization-rule keys list --name RootManageSharedAccessKey --namespace-name voicecodebus-0724 --resource-group $RESOURCE_GROUP --query primaryConnectionString -o tsv)" \
-        "openai-api-key=$OPENAI_API_KEY"
+        "openai-api-key=$(az keyvault secret show --vault-name voicecodedevkveus --name OpenAIApiKey --query value -o tsv)"
 
 echo "Voice Intelligence Service deployed successfully!"
 echo "URL: https://$SERVICE_NAME.orangewater-a2f689a8.eastus.azurecontainerapps.io"

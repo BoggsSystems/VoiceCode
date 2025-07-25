@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environmentName": {
+      "value": "voicecode"
+    },
+    "containerRegistryName": {
+      "value": "voicecodebuildsprod"
+    },
+    "keyVaultName": {
+      "value": "voicecodevault-0724"
+    },
+    "serviceBusNamespace": {
+      "value": "voicecodebus-0724"
+    },
+    "storageAccountName": {
+      "value": "voicecodestorage0724"
+    },
+    "appInsightsName": {
+      "value": "voicecode-insights"
+    },
+    "logAnalyticsName": {
+      "value": "voicecode-logs"
+    }
+  }
+}

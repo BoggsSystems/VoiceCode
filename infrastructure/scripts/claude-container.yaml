@@ -1,0 +1,96 @@
+apiVersion: 2019-12-01
+location: eastus
+name: voicecode-dev-eus-claude-ci
+properties:
+  containers:
+  - name: claude
+    properties:
+      image: voicecodebuildsprod.azurecr.io/voicecode/claude-service:v3
+      resources:
+        requests:
+          cpu: 1.0
+          memoryInGb: 2.0
+      ports:
+      - port: 80
+        protocol: TCP
+      - port: 443
+        protocol: TCP
+      environmentVariables:
+      - name: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - name: ASPNETCORE_URLS
+        value: http://+:80
+      - name: SERVICE_NAME
+        value: claude
+      - name: CONTAINER_MODE
+        value: 'true'
+      - name: KeyVaultName
+        value: voicecodedevkveus
+      - name: AzureAd__TenantId
+        value: 2c45017b-71d8-4cd7-ae62-74745f21cf10
+      - name: AzureAd__Instance
+        value: https://login.microsoftonline.com/
+      - name: Cors__AllowedOrigins__0
+        value: https://voicecode.dev
+      - name: Cors__AllowedOrigins__1
+        value: http://localhost:3000
+      - name: ANTHROPIC_API_KEY
+        secureValue: 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
+      - name: ApplicationInsights__ConnectionString
+        secureValue: 
+      - name: ConnectionStrings__ServiceBus
+        secureValue: Endpoint=sb://voicecode-dev-eus-sbus.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=l9ZLNdYwbOIbNC7BA7Bdr/d9c9Z/M8XbO+ASbLxDEYI=
+      - name: ConnectionStrings__Redis
+        secureValue: voicecode-dev-eus-redis.redis.cache.windows.net:6380,password=MD0gD41WUD4cn9l6HKC07RQy0QmlLlaH7AzCaMqsoD0=,ssl=True,abortConnect=False
+      - name: ConnectionStrings__Storage
+        secureValue: 
+      - name: ConnectionStrings__CosmosDb
+        secureValue: AccountEndpoint=https://voicecode-dev-eus-cosmos.documents.azure.com:443/;AccountKey=FBfjemx8oY4E1IfzmIo5EfKfz4LRDwB5DqTkBBk90F1KJR0eJgvrCnCi4smvqsRxS1aH9Jio9pWUACDbczn2Hw==;
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 80
+          scheme: Http
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /health/ready
+          port: 80
+          scheme: Http
+        initialDelaySeconds: 15
+        periodSeconds: 10
+        timeoutSeconds: 3
+        failureThreshold: 3
+  osType: Linux
+  restartPolicy: Always
+  ipAddress:
+    type: Public
+    dnsNameLabel: voicecode-dev-eus-claude
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+  imageRegistryCredentials:
+  - server: voicecodebuildsprod.azurecr.io
+    username: voicecodebuildsprod
+    password: /aRSjRdztIc7B4K8kBqw5Ec2mq0ufVwQHoR/PielI++ACRARqEUC
+  identity:
+    type: UserAssigned
+    userAssignedIdentities:
+      Ensuring managed identity for claude...
+Creating managed identity: voicecode-dev-eus-id-claude
+Identity ID: /subscriptions/42533332-e34e-4e78-b052-f051bc7d5206/resourcegroups/voicecode-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/voicecode-dev-eus-id-claude
+Client ID: df28feea-be71-4186-8e0c-1082a0ac074f
+Granting Key Vault access...
+Granting ACR pull access...
+✓ Managed identity configured for claude
+/subscriptions/42533332-e34e-4e78-b052-f051bc7d5206/resourcegroups/voicecode-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/voicecode-dev-eus-id-claude: {}
+tags:
+  Environment: Production
+  Service: claude
+  Type: ContainerInstance
+type: Microsoft.ContainerInstance/containerGroups

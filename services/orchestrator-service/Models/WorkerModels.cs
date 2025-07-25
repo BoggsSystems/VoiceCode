@@ -7,6 +7,8 @@ public class WorkerTask
     public string Description { get; set; } = string.Empty;
     public string WorkspaceId { get; set; } = string.Empty;
     public Dictionary<string, object> Parameters { get; set; } = new();
+    public string? Input { get; set; }
+    public Dictionary<string, object> Context { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
@@ -37,6 +39,7 @@ public class WorkerTaskResult
 public class FileOperation
 {
     public string Type { get; set; } = string.Empty;
+    public string OperationType { get; set; } = string.Empty; // Create, Update, Delete
     public string FilePath { get; set; } = string.Empty;
     public string? Content { get; set; }
     public string? OldContent { get; set; }
@@ -71,4 +74,38 @@ public enum WorkerState
     Busy,
     Offline,
     Error
+}
+
+public class ClaudeCodeTask
+{
+    public string Id { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string Prompt { get; set; } = string.Empty;
+    public string WorkspaceId { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public Dictionary<string, object> Context { get; set; } = new();
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public ClaudeCodeTaskStatus Status { get; set; } = ClaudeCodeTaskStatus.Pending;
+    public string? Result { get; set; }
+    public string? Error { get; set; }
+}
+
+public enum ClaudeCodeTaskStatus
+{
+    Pending,
+    InProgress,
+    Completed,
+    Failed,
+    Cancelled
+}
+
+public class TaskResult
+{
+    public string TaskId { get; set; } = string.Empty;
+    public bool Success { get; set; }
+    public TimeSpan Duration { get; set; }
+    public string? Output { get; set; }
+    public string? Error { get; set; }
+    public string TaskType { get; set; } = string.Empty;
+    public Dictionary<string, object> Metadata { get; set; } = new();
 }

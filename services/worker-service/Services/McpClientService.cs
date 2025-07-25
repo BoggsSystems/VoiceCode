@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Options;
@@ -24,7 +25,7 @@ public class McpClientService : IMcpClientService
     private StreamWriter? _stdin;
     private StreamReader? _stdout;
     private readonly SemaphoreSlim _requestLock = new(1);
-    private readonly Dictionary<string, TaskCompletionSource<McpResponse>> _pendingRequests = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<McpResponse>> _pendingRequests = new();
     private CancellationTokenSource? _readCancellation;
     private Task? _readTask;
     

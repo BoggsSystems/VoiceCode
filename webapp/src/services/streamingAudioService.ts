@@ -1,5 +1,6 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { apiConfig } from '../config/apiConfig';
+import { streamingMetrics } from './streamingMetrics';
 
 export interface AudioStreamConfig {
   sampleRate: number;
@@ -99,6 +100,7 @@ export class StreamingAudioService {
       this.sessionId = data.sessionId;
       this.config = { ...this.config, ...data.config };
       console.log('Stream session started:', this.sessionId);
+      streamingMetrics.createSession(this.sessionId);
     });
 
     this.connection.on('StreamStarted', (data: any) => {
@@ -119,6 +121,18 @@ export class StreamingAudioService {
 
     this.connection.on('PartialTranscription', (data: any) => {
       window.dispatchEvent(new CustomEvent('partialTranscription', { detail: data }));
+      if (this.sessionId && data.text) {
+        const wordCount = data.text.split(/\s+/).filter((w: string) => w.length > 0).length;
+        streamingMetrics.recordTranscriptionEvent(this.sessionId, 'partial', wordCount, data.confidence || 0.5);
+      }
+    });
+
+    this.connection.on('FinalTranscription', (data: any) => {
+      window.dispatchEvent(new CustomEvent('finalTranscription', { detail: data }));
+      if (this.sessionId && data.text) {
+        const wordCount = data.text.split(/\s+/).filter((w: string) => w.length > 0).length;
+        streamingMetrics.recordTranscriptionEvent(this.sessionId, 'final', wordCount, data.confidence || 0.9);
+      }
     });
 
     this.connection.on('StreamError', (error: any) => {
@@ -134,6 +148,9 @@ export class StreamingAudioService {
     this.connection.onreconnecting(() => {
       console.log('Reconnecting to audio stream...');
       this.reconnectAttempts++;
+      if (this.sessionId) {
+        streamingMetrics.recordConnectionEvent(this.sessionId, 'reconnection');
+      }
     });
 
     this.connection.onreconnected(() => {
@@ -183,7 +200,13 @@ export class StreamingAudioService {
       // Handle audio chunks from worklet
       this.audioWorklet.port.onmessage = (event) => {
         if (event.data.type === 'audio' && this.isStreaming) {
-          this.sendAudioChunk(event.data.data);
+          const chunkStart = Date.now();
+          this.sendAudioChunk(event.data.data).then(() => {
+            const latency = Date.now() - chunkStart;
+            if (this.sessionId) {
+              streamingMetrics.recordChunk(this.sessionId, event.data.data.byteLength, latency);
+            }
+          });
         }
       };
 
@@ -195,6 +218,9 @@ export class StreamingAudioService {
       await this.connection?.invoke('StartAudioStream', this.config);
     } catch (error) {
       console.error('Error starting recording:', error);
+      if (this.sessionId) {
+        streamingMetrics.recordConnectionEvent(this.sessionId, 'error');
+      }
       throw error;
     }
   }
@@ -202,6 +228,9 @@ export class StreamingAudioService {
   async stopRecording(): Promise<void> {
     try {
       await this.connection?.invoke('StopAudioStream');
+      if (this.sessionId) {
+        streamingMetrics.endSession(this.sessionId);
+      }
       this.cleanup();
     } catch (error) {
       console.error('Error stopping recording:', error);

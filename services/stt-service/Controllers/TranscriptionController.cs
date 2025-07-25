@@ -15,6 +15,7 @@ public class TranscriptionController : ControllerBase
 {
     private readonly ISTTService _sttService;
     private readonly IStreamingSTTService _streamingSTTService;
+    private readonly IEnhancedStreamingSTTService _enhancedStreamingService;
     private readonly IAudioStorageService _audioStorage;
     private readonly ICacheService _cache;
     private readonly ILogger<TranscriptionController> _logger;
@@ -22,12 +23,14 @@ public class TranscriptionController : ControllerBase
     public TranscriptionController(
         ISTTService sttService,
         IStreamingSTTService streamingSTTService,
+        IEnhancedStreamingSTTService enhancedStreamingService,
         IAudioStorageService audioStorage,
         ICacheService cache,
         ILogger<TranscriptionController> logger)
     {
         _sttService = sttService;
         _streamingSTTService = streamingSTTService;
+        _enhancedStreamingService = enhancedStreamingService;
         _audioStorage = audioStorage;
         _cache = cache;
         _logger = logger;
@@ -166,6 +169,99 @@ public class TranscriptionController : ControllerBase
             Message = "Transcription completed"
         });
     }
+
+    [HttpPost("stream/start")]
+    public async Task<ActionResult<StreamSessionResponse>> StartStreamSession(
+        [FromBody] StartStreamRequest request)
+    {
+        try
+        {
+            var sessionId = request.SessionId ?? Guid.NewGuid().ToString();
+            
+            // Use enhanced streaming service if enhanced features requested
+            if (request.UseEnhanced)
+            {
+                await _enhancedStreamingService.StartStreamingSessionAsync(sessionId, request.Language ?? "en-US");
+                
+                return Ok(new StreamSessionResponse
+                {
+                    SessionId = sessionId,
+                    Status = "active",
+                    Enhanced = true,
+                    Message = "Enhanced streaming session started"
+                });
+            }
+            else
+            {
+                await _streamingSTTService.StartStreamingSessionAsync(sessionId, request.Language ?? "en-US");
+                
+                return Ok(new StreamSessionResponse
+                {
+                    SessionId = sessionId,
+                    Status = "active",
+                    Enhanced = false,
+                    Message = "Streaming session started"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start streaming session");
+            return BadRequest(new { error = "Failed to start streaming session", details = ex.Message });
+        }
+    }
+
+    [HttpGet("stream/{sessionId}/info")]
+    public async Task<ActionResult<StreamingSessionInfo>> GetStreamInfo(string sessionId)
+    {
+        var info = await _enhancedStreamingService.GetSessionInfoAsync(sessionId);
+        
+        if (info == null)
+        {
+            return NotFound(new { error = "Session not found" });
+        }
+        
+        return Ok(info);
+    }
+
+    [HttpGet("stream/{sessionId}/transcripts")]
+    public async Task<ActionResult<List<TranscriptionSegment>>> GetSessionTranscripts(string sessionId)
+    {
+        var transcripts = await _enhancedStreamingService.GetSessionTranscriptsAsync(sessionId);
+        return Ok(transcripts);
+    }
+
+    [HttpGet("stream/{sessionId}/metrics")]
+    public async Task<ActionResult<StreamingMetrics>> GetSessionMetrics(string sessionId)
+    {
+        var metrics = await _enhancedStreamingService.GetSessionMetricsAsync(sessionId);
+        
+        if (metrics == null)
+        {
+            return NotFound(new { error = "Session not found" });
+        }
+        
+        return Ok(metrics);
+    }
+
+    [HttpPost("stream/{sessionId}/end")]
+    public async Task<ActionResult<TranscriptionResult>> EndStreamSession(string sessionId)
+    {
+        try
+        {
+            var result = await _enhancedStreamingService.EndStreamingSessionAsync(sessionId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to end streaming session");
+            return StatusCode(500, new { error = "Failed to end streaming session" });
+        }
+    }
 }
 
 public class TranscribeStreamRequest
@@ -180,5 +276,20 @@ public class TranscriptionStatus
 {
     public string RequestId { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+
+public class StartStreamRequest
+{
+    public string? SessionId { get; set; }
+    public string? Language { get; set; }
+    public bool UseEnhanced { get; set; }
+}
+
+public class StreamSessionResponse
+{
+    public string SessionId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public bool Enhanced { get; set; }
     public string Message { get; set; } = string.Empty;
 }
