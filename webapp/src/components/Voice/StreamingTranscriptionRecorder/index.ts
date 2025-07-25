@@ -1,0 +1,1 @@
+export { StreamingTranscriptionRecorder } from './StreamingTranscriptionRecorder';

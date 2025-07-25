@@ -1,0 +1,39 @@
+--- a/services/worker-service/Services/WorkerQueueProcessorService.cs
++++ b/services/worker-service/Services/WorkerQueueProcessorService.cs
+@@ -14,7 +14,7 @@ public class WorkerQueueProcessorService : BackgroundService
+     private readonly WorkerOptions _options;
+     private ServiceBusClient? _serviceBusClient;
+     private ServiceBusProcessor? _processor;
+-    private readonly string _queueName = "worker-tasks";
++    private readonly string _queueName;
+ 
+     public WorkerQueueProcessorService(
+         ILogger<WorkerQueueProcessorService> logger,
+@@ -24,6 +24,18 @@ public class WorkerQueueProcessorService : BackgroundService
+         _logger = logger;
+         _serviceProvider = serviceProvider;
+         _options = options.Value;
++        
++        // Get WORKER_ID from environment variable and construct queue name
++        var workerId = Environment.GetEnvironmentVariable("WORKER_ID");
++        if (!string.IsNullOrEmpty(workerId))
++        {
++            _queueName = $"worker-{workerId}-tasks";
++            _logger.LogInformation($"Worker {workerId} will listen to queue: {_queueName}");
++        }
++        else
++        {
++            _queueName = "worker-tasks";
++            _logger.LogWarning("WORKER_ID not set. Using default queue: worker-tasks");
++        }
+     }
+ 
+     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+@@ -39,6 +51,7 @@ public class WorkerQueueProcessorService : BackgroundService
+             }
+ 
+             _serviceBusClient = new ServiceBusClient(connectionString);
++            _logger.LogInformation($"Connecting to Service Bus queue: {_queueName}");
+             _processor = _serviceBusClient.CreateProcessor(_queueName, new ServiceBusProcessorOptions
+             {
+                 MaxConcurrentCalls = _options.MaxConcurrentWorkers,

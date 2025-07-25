@@ -5,6 +5,18 @@ using Microsoft.Extensions.Options;
 
 namespace VoiceCode.OrchestratorService.Services;
 
+public interface ICodeAnalysisService
+{
+    Task<List<CodeChange>> AnalyzeCodeBlocksAsync(List<CodeBlock> codeBlocks);
+}
+
+public class CodeBlock
+{
+    public string Language { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+}
+
 public interface IResponseTranslationService
 {
     Task<VoiceSummary> TranslateClaudeResponseAsync(
@@ -26,7 +38,7 @@ public class ResponseTranslationService : IResponseTranslationService
     {
         _logger = logger;
         _codeAnalysis = codeAnalysis;
-        _options = options.Value;
+        _options = options?.Value ?? new OrchestrationOptions();
     }
 
     public async Task<VoiceSummary> TranslateClaudeResponseAsync(

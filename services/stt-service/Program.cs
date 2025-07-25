@@ -101,6 +101,8 @@ try
     // Add services
     builder.Services.AddScoped<ISTTService, SpeechToTextService>();
     builder.Services.AddSingleton<IStreamingSTTService, StreamingSpeechToTextService>();
+    builder.Services.AddSingleton<IEnhancedStreamingSTTService, EnhancedStreamingSTTService>();
+    builder.Services.AddSingleton<ITranscriptionStreamManager, TranscriptionStreamManager>();
     builder.Services.AddScoped<IAudioStorageService, AudioStorageService>();
 
     // Add health checks

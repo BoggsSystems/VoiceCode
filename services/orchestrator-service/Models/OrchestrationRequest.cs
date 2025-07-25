@@ -1,3 +1,5 @@
+using VoiceCode.OrchestratorService.Configuration;
+
 namespace VoiceCode.OrchestratorService.Models;
 
 public class OrchestrationRequest
@@ -6,6 +8,9 @@ public class OrchestrationRequest
     public string UserId { get; set; } = string.Empty;
     public string Transcript { get; set; } = string.Empty;
     public string Intent { get; set; } = string.Empty;
+    public string? UserPrompt { get; set; }
+    public string? RequestType { get; set; }
+    public string? PreferredResponseStyle { get; set; }
     public Dictionary<string, object> Context { get; set; } = new();
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public ResponseDetailLevel? RequestedDetailLevel { get; set; }
@@ -14,6 +19,12 @@ public class OrchestrationRequest
 public class OrchestrationResponse
 {
     public string SessionId { get; set; } = string.Empty;
+    public bool Success { get; set; } = true;
+    public string Message { get; set; } = string.Empty;
+    public List<string> KeyActions { get; set; } = new();
+    public string? NextSteps { get; set; }
+    public bool RequiresConfirmation { get; set; }
+    public ConfirmationPrompt? ConfirmationPrompt { get; set; }
     public VoiceSummary VoiceSummary { get; set; } = new();
     public string FullResponse { get; set; } = string.Empty;
     public List<CodeChange> CodeChanges { get; set; } = new();

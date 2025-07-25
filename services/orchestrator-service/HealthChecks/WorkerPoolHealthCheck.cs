@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using VoiceCode.OrchestratorService.Services;
 
-namespace VoiceCode.OrchestratorService
+namespace VoiceCode.OrchestratorService.Health
 {
     public class WorkerPoolHealthCheck : IHealthCheck
     {

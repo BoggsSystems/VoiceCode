@@ -13,24 +13,38 @@ public interface ITTSQueueService
 public class TTSQueueService : ITTSQueueService
 {
     private readonly ILogger<TTSQueueService> _logger;
-    private readonly ServiceBusClient _serviceBusClient;
-    private readonly ServiceBusSender _ttsSender;
+    private readonly IConfiguration _configuration;
+    private ServiceBusClient? _serviceBusClient;
+    private ServiceBusSender? _ttsSender;
 
     public TTSQueueService(ILogger<TTSQueueService> logger, IConfiguration configuration)
     {
         _logger = logger;
-        
-        var connectionString = configuration["ServiceBus:ConnectionString"] ?? 
-            Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
-        
-        _serviceBusClient = new ServiceBusClient(connectionString);
-        _ttsSender = _serviceBusClient.CreateSender("tts-requests");
+        _configuration = configuration;
+    }
+    
+    private void EnsureInitialized()
+    {
+        if (_serviceBusClient == null)
+        {
+            var connectionString = _configuration["ServiceBus:ConnectionString"] ?? 
+                Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
+            
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException("Service Bus connection string not configured");
+            }
+            
+            _serviceBusClient = new ServiceBusClient(connectionString);
+            _ttsSender = _serviceBusClient.CreateSender("tts-requests");
+        }
     }
 
     public async Task SendToTTSAsync(VoiceResponse voiceResponse)
     {
         try
         {
+            EnsureInitialized();
             // Format for TTS service
             var ttsRequest = new
             {
@@ -54,7 +68,7 @@ public class TTSQueueService : ITTSQueueService
                 SessionId = voiceResponse.SessionId
             };
 
-            await _ttsSender.SendMessageAsync(message);
+            await _ttsSender!.SendMessageAsync(message);
             
             _logger.LogInformation("Sent voice response to TTS queue for task {TaskId}: {Response}", 
                 voiceResponse.TaskId, voiceResponse.SpokenResponse);

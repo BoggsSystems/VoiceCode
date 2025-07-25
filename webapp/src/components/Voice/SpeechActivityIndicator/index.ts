@@ -1,0 +1,1 @@
+export { SpeechActivityIndicator } from './SpeechActivityIndicator';

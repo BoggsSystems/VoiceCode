@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using VoiceCode.OrchestratorService.Models;
 using VoiceCode.OrchestratorService.Services;
+using VoiceCode.OrchestratorService.Configuration;
 
 namespace VoiceCode.OrchestratorService.Controllers;
 
@@ -11,13 +12,13 @@ public class OrchestrationController : ControllerBase
     private readonly ILogger<OrchestrationController> _logger;
     private readonly IWorkerManagementService _workerManagement;
     private readonly IWorkerPoolService _workerPool;
-    private readonly ResponseTranslationService _responseTranslation;
+    private readonly IResponseTranslationService _responseTranslation;
 
     public OrchestrationController(
         ILogger<OrchestrationController> logger,
         IWorkerManagementService workerManagement,
         IWorkerPoolService workerPool,
-        ResponseTranslationService responseTranslation)
+        IResponseTranslationService responseTranslation)
     {
         _logger = logger;
         _workerManagement = workerManagement;
@@ -57,9 +58,10 @@ public class OrchestrationController : ControllerBase
             }
 
             // Translate result for voice
-            var voiceResponse = await _responseTranslation.TranslateResponseAsync(
+            var voiceResponse = await _responseTranslation.TranslateClaudeResponseAsync(
                 result.Summary, 
-                request.PreferredResponseStyle);
+                request.UserPrompt ?? request.Transcript,
+                request.RequestedDetailLevel ?? ResponseDetailLevel.Summary);
 
             var response = new OrchestrationResponse
             {
@@ -315,9 +317,10 @@ public class OrchestrationController : ControllerBase
                 });
             }
 
-            var voiceResponse = await _responseTranslation.TranslateResponseAsync(
+            var voiceResponse = await _responseTranslation.TranslateClaudeResponseAsync(
                 result.Summary, 
-                request.PreferredResponseStyle);
+                request.UserPrompt ?? request.Transcript,
+                request.RequestedDetailLevel ?? ResponseDetailLevel.Summary);
 
             var response = new OrchestrationResponse
             {

@@ -1,0 +1,57 @@
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 80
+EXPOSE 443
+
+# Install dependencies and Node.js for Claude Code
+RUN apt-get update && \
+    apt-get install -y curl git gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI via npm
+RUN npm install -g @anthropic-ai/claude-code || echo "Claude Code installation failed, continuing..."
+
+# Alternative: Copy from pre-built image (if npm fails)
+# COPY --from=ghcr.io/Zeeno-atl/claude-code:latest /usr/local/bin/claude-code /usr/local/bin/claude-code
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["services/worker-service/VoiceCode.WorkerService.csproj", "services/worker-service/"]
+COPY ["shared/VoiceCode.Common/VoiceCode.Common.csproj", "shared/VoiceCode.Common/"]
+RUN dotnet restore "services/worker-service/VoiceCode.WorkerService.csproj"
+COPY . .
+WORKDIR "/src/services/worker-service"
+RUN dotnet build "VoiceCode.WorkerService.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "VoiceCode.WorkerService.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+
+# Copy startup script
+COPY services/worker-service/startup.sh /startup.sh
+RUN chmod +x /startup.sh
+
+# Create workspace directory
+RUN mkdir -p /workspace && chmod 777 /workspace
+RUN mkdir -p /workspaces && chmod 777 /workspaces
+
+# Set environment variables
+ENV ASPNETCORE_URLS=http://+:80
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+ENV WORKSPACE_DIR=/workspace
+ENV SHALLOW_CLONE=true
+ENV MCP_SERVER_EXECUTABLE=claude-code
+ENV MCP_SERVER_ARGS="--mcp"
+
+# Create entrypoint script that runs startup then the app
+RUN echo '#!/bin/bash\n\
+/startup.sh\n\
+exec dotnet VoiceCode.WorkerService.dll' > /entrypoint.sh && \
+chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using VoiceCode.OrchestratorService.Models;
+using TaskStatus = VoiceCode.OrchestratorService.Models.TaskStatus;
 
 namespace VoiceCode.OrchestratorService.Services
 {

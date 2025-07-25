@@ -1,0 +1,7 @@
+{
+  "taskId": "test-claude-cli-$(date +%s)",
+  "workerId": "1",
+  "voiceCommand": "Show me the README.md file",
+  "sessionId": "test-session-$(date +%s)",
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+}
