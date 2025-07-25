@@ -45,6 +45,18 @@ builder.Services.AddHostedService<WorkerPoolService>(provider =>
 // Register Enhanced Worker Management Service
 builder.Services.AddSingleton<IWorkerManagementService, EnhancedWorkerManagementService>();
 
+// Register Repository-Aware Routing Service
+builder.Services.AddSingleton<IRepoAwareRoutingService, RepoAwareRoutingService>();
+
+// Register Simplified Services (Phase 5)
+builder.Services.AddSingleton<ISimplifiedVoiceTaskService, SimplifiedVoiceTaskService>();
+builder.Services.AddSingleton<IVoiceProgressReportingService, VoiceProgressReportingService>();
+builder.Services.AddHostedService<VoiceProgressReportingService>(provider => 
+    (VoiceProgressReportingService)provider.GetRequiredService<IVoiceProgressReportingService>());
+
+// Add SignalR for real-time progress updates
+builder.Services.AddSignalR();
+
 // Register HTTP client factory
 builder.Services.AddHttpClient();
 
@@ -65,6 +77,9 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+// Map SignalR hub
+app.MapHub<ProgressHub>("/hubs/progress");
 
 Log.Information("Orchestrator Service starting on port {Port}", 
     builder.Configuration["ASPNETCORE_URLS"] ?? "5010");
