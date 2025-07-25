@@ -330,9 +330,9 @@ namespace VoiceCode.DispatcherService.Hubs
                             transcriptionResult.Text, 
                             await _sessionManager.GetSessionAsync(session.SessionId));
                         
-                        if (routingResult.Intent.Category == VoiceCode.Common.Enums.IntentCategory.Coding ||
-                            routingResult.Intent.Category == VoiceCode.Common.Enums.IntentCategory.Explanation ||
-                            routingResult.Intent.Category == VoiceCode.Common.Enums.IntentCategory.Debugging)
+                        if (routingResult.Intent.Category == VoiceCode.Common.Enums.IntentCategory.CodeGeneration ||
+                            routingResult.Intent.Category == VoiceCode.Common.Enums.IntentCategory.CodeExplanation ||
+                            routingResult.Intent.Category == VoiceCode.Common.Enums.IntentCategory.ErrorFixing)
                         {
                             await _queueDispatcher.SendToClaudeAsync(session.SessionId, new
                             {
