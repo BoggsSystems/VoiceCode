@@ -14,7 +14,7 @@ public class WorkerQueueProcessorService : BackgroundService
     private readonly WorkerOptions _options;
     private ServiceBusClient? _serviceBusClient;
     private ServiceBusProcessor? _processor;
-    private readonly string _queueName = "worker-tasks";
+    private readonly string _queueName;
 
     public WorkerQueueProcessorService(
         ILogger<WorkerQueueProcessorService> logger,
@@ -24,6 +24,19 @@ public class WorkerQueueProcessorService : BackgroundService
         _logger = logger;
         _serviceProvider = serviceProvider;
         _options = options.Value;
+        
+        // Get WORKER_ID from environment variable and construct queue name
+        var workerId = Environment.GetEnvironmentVariable("WORKER_ID");
+        if (!string.IsNullOrEmpty(workerId))
+        {
+            _queueName = $"worker-{workerId}-tasks";
+            _logger.LogInformation($"Worker {workerId} will listen to queue: {_queueName}");
+        }
+        else
+        {
+            _queueName = "worker-tasks";
+            _logger.LogWarning("WORKER_ID not set. Using default queue: worker-tasks");
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -39,6 +52,7 @@ public class WorkerQueueProcessorService : BackgroundService
             }
 
             _serviceBusClient = new ServiceBusClient(connectionString);
+            _logger.LogInformation($"Connecting to Service Bus queue: {_queueName}");
             _processor = _serviceBusClient.CreateProcessor(_queueName, new ServiceBusProcessorOptions
             {
                 MaxConcurrentCalls = _options.MaxConcurrentWorkers,
@@ -69,22 +83,38 @@ public class WorkerQueueProcessorService : BackgroundService
         try
         {
             var body = Encoding.UTF8.GetString(args.Message.Body);
-            var task = JsonConvert.DeserializeObject<WorkerTask>(body);
+            var orchestratorTask = JsonConvert.DeserializeObject<OrchestratorTask>(body);
             
-            if (task == null)
+            if (orchestratorTask == null)
             {
                 _logger.LogError("Failed to deserialize task message");
                 await args.CompleteMessageAsync(args.Message);
                 return;
             }
 
-            _logger.LogInformation("Processing task {TaskId} of type {TaskType}", task.Id, task.Type);
+            _logger.LogInformation("Processing task {TaskId} with voice command: {VoiceCommand}", 
+                orchestratorTask.TaskId, orchestratorTask.VoiceCommand);
+
+            // Convert to WorkerTask format
+            var workerTask = new WorkerTask
+            {
+                Id = orchestratorTask.TaskId,
+                Type = "voice_command",
+                Description = orchestratorTask.VoiceCommand,
+                WorkspaceId = orchestratorTask.WorkerId,
+                Parameters = new Dictionary<string, object>
+                {
+                    ["voiceCommand"] = orchestratorTask.VoiceCommand,
+                    ["sessionId"] = orchestratorTask.SessionId
+                },
+                CreatedAt = orchestratorTask.Timestamp
+            };
 
             using var scope = _serviceProvider.CreateScope();
             var workerService = scope.ServiceProvider.GetRequiredService<IClaudeCodeWorkerService>();
             
             // Execute the task
-            var result = await workerService.ExecuteTaskAsync(task);
+            var result = await workerService.ExecuteTaskAsync(workerTask);
 
             // Send result to response queue
             await SendResultAsync(result);
@@ -92,7 +122,7 @@ public class WorkerQueueProcessorService : BackgroundService
             // Complete the message
             await args.CompleteMessageAsync(args.Message);
             
-            _logger.LogInformation("Task {TaskId} processed successfully", task.Id);
+            _logger.LogInformation("Task {TaskId} processed successfully", orchestratorTask.TaskId);
         }
         catch (Exception ex)
         {

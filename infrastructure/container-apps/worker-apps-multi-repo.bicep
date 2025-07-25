@@ -246,11 +246,9 @@ resource workerApps 'Microsoft.App/containerApps@2023-11-02-preview' = [for conf
             }
           }
         ]
-        // Idle timeout configuration
-        idleTimeout: 300 // 5 minutes default, can be increased to 1800 (30 min)
       }
     }
-    workloadProfileName: 'Consumption' // Use consumption plan for cost efficiency
+      // workloadProfileName: 'Consumption' // Use consumption plan for cost efficiency
   }
 }]
 
