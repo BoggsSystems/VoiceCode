@@ -42,6 +42,28 @@ try
         builder.Configuration.AddAzureKeyVault(keyVaultEndpoint, new DefaultAzureCredential());
     }
 
+    // Explicitly set configuration values from environment variables
+    var speechKey = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY");
+    var speechRegion = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION");
+    var serviceBusConnectionString = Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
+    
+    if (!string.IsNullOrEmpty(speechKey))
+    {
+        builder.Configuration["AzureSpeech:Key"] = speechKey;
+        Log.Information("Azure Speech Key configured from environment variable");
+    }
+    
+    if (!string.IsNullOrEmpty(speechRegion))
+    {
+        builder.Configuration["AzureSpeech:Region"] = speechRegion;
+        Log.Information("Azure Speech Region configured: {Region}", speechRegion);
+    }
+    
+    if (!string.IsNullOrEmpty(serviceBusConnectionString))
+    {
+        builder.Configuration["ConnectionStrings:ServiceBus"] = serviceBusConnectionString;
+    }
+
     // Add services
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
@@ -53,6 +75,12 @@ try
             Version = "v1",
             Description = "Text-to-Speech service for VoiceCode"
         });
+    });
+
+    // Add HttpClient for Azure TTS REST API
+    builder.Services.AddHttpClient("AzureTTS", client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(30);
     });
 
     // Add authentication
@@ -107,6 +135,9 @@ try
     builder.Services.AddScoped<VoiceCode.Common.Interfaces.IAudioStorageService, AudioStorageService>();
     builder.Services.AddSingleton<IVoicePersonalityService, VoicePersonalityService>();
     builder.Services.AddSingleton<ISSMLBuilder, SSMLBuilderService>();
+    
+    // Add background service for Service Bus processing
+    builder.Services.AddHostedService<TTSQueueProcessor>();
 
     // Add health checks
     var healthChecks = builder.Services.AddHealthChecks();

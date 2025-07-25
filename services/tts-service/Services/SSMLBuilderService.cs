@@ -20,12 +20,16 @@ public class SSMLBuilderService : ISSMLBuilder
     {
         try
         {
+            XNamespace ns = "http://www.w3.org/2001/10/synthesis";
+            XNamespace mstts = "http://www.w3.org/2001/mstts";
+            
             var ssml = new XDocument(
                 new XDeclaration("1.0", "UTF-8", null),
-                new XElement(XName.Get("speak", "http://www.w3.org/2001/10/synthesis"),
+                new XElement(ns + "speak",
                     new XAttribute("version", "1.0"),
                     new XAttribute(XNamespace.Xml + "lang", profile.Language),
-                    BuildVoiceElement(text, profile, emotion)
+                    new XAttribute(XNamespace.Xmlns + "mstts", mstts),
+                    BuildVoiceElement(text, profile, emotion, mstts)
                 )
             );
 
@@ -38,7 +42,7 @@ public class SSMLBuilderService : ISSMLBuilder
         }
     }
 
-    private XElement BuildVoiceElement(string text, VoiceCode.Common.Models.VoiceProfile profile, string? emotion)
+    private XElement BuildVoiceElement(string text, VoiceCode.Common.Models.VoiceProfile profile, string? emotion, XNamespace mstts)
     {
         var voiceElement = new XElement("voice",
             new XAttribute("name", profile.NeuralVoiceName));
@@ -47,8 +51,7 @@ public class SSMLBuilderService : ISSMLBuilder
         if (profile.Styles != null && profile.Styles.Count > 0)
         {
             var style = emotion ?? (profile.Styles.ContainsKey("default") ? profile.Styles["default"] : profile.Styles.First().Value);
-            var styleElement = new XElement("mstts:express-as",
-                new XAttribute(XNamespace.Xmlns + "mstts", "http://www.w3.org/2001/mstts"),
+            var styleElement = new XElement(mstts + "express-as",
                 new XAttribute("style", style));
 
             // Add prosody element inside style
@@ -92,15 +95,9 @@ public class SSMLBuilderService : ISSMLBuilder
     {
         // Escape XML special characters
         text = System.Security.SecurityElement.Escape(text);
-
-        // Add smart pauses after punctuation
-        text = text.Replace(".", ".<break time=\"300ms\"/>");
-        text = text.Replace("!", "!<break time=\"300ms\"/>");
-        text = text.Replace("?", "?<break time=\"300ms\"/>");
-        text = text.Replace(",", ",<break time=\"150ms\"/>");
-        text = text.Replace(":", ":<break time=\"200ms\"/>");
-        text = text.Replace(";", ";<break time=\"200ms\"/>");
-
+        
+        // For now, just return the escaped text without adding break tags
+        // as they would need to be proper XML elements, not text
         return text;
     }
 

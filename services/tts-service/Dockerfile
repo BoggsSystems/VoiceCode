@@ -3,6 +3,13 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
+# The app now uses REST API as fallback, so minimal dependencies needed
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
@@ -29,20 +36,5 @@ RUN dotnet publish "VoiceCode.TTSService.csproj" -c Release -o /app/publish /p:U
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-
-# Install dependencies for Azure Speech SDK
-RUN apt-get update && apt-get install -y \
-    libasound2 \
-    libssl-dev \
-    ca-certificates \
-    libc6 \
-    libgcc1 \
-    libgssapi-krb5-2 \
-    libicu72 \
-    liblttng-ust1 \
-    libssl3 \
-    libstdc++6 \
-    zlib1g \
-    && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["dotnet", "VoiceCode.TTSService.dll"]
