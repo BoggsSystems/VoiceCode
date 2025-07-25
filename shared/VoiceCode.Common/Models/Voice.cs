@@ -33,12 +33,27 @@ public class TranscriptionResult
     public bool IsFinal { get; set; } = true;
     public long? AudioSizeBytes { get; set; }
     public double? Duration { get; set; }
+    public Dictionary<string, object>? Metadata { get; set; }
+    
+    // Backward compatibility property
+    public string Text 
+    { 
+        get => Transcript; 
+        set => Transcript = value; 
+    }
 }
 
 public class TranscriptionAlternative
 {
     public string Transcript { get; set; } = string.Empty;
     public double Confidence { get; set; }
+    
+    // Backward compatibility property
+    public string Text 
+    { 
+        get => Transcript; 
+        set => Transcript = value; 
+    }
 }
 
 public class TranscriptionWord
@@ -47,4 +62,25 @@ public class TranscriptionWord
     public double StartTime { get; set; }
     public double EndTime { get; set; }
     public double Confidence { get; set; }
+}
+
+public class TranscriptionSegment
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Text { get; set; } = string.Empty;
+    public bool IsFinal { get; set; }
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public double Confidence { get; set; }
+    public List<TranscriptionWord> Words { get; set; } = new();
+    public string? Language { get; set; }
+    public TimeSpan? Duration { get; set; }
+}
+
+public class PartialTranscriptionResult
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Text { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public string? SessionId { get; set; }
+    public double? StabilityScore { get; set; }
 }
