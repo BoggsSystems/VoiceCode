@@ -72,14 +72,10 @@ IDENTITY_CLIENT_ID=$(az identity show \
     --query clientId -o tsv)
 
 # Get Key Vault name
-KEY_VAULT=$(az keyvault list \
-    --resource-group $RESOURCE_GROUP \
-    --query "[?starts_with(name, 'voicecodevault')].name" -o tsv | head -1)
+KEY_VAULT="voicecodevault-0724"
 
 # Get Service Bus namespace
-SERVICE_BUS=$(az servicebus namespace list \
-    --resource-group $RESOURCE_GROUP \
-    --query "[0].name" -o tsv)
+SERVICE_BUS="voicecodebus-0724"
 
 # Get Application Insights connection string
 APP_INSIGHTS_CONNECTION=$(az monitor app-insights component show \
@@ -130,8 +126,6 @@ for i in {1..10}; do
             --resource-group $RESOURCE_GROUP \
             --max-size 1024 \
             --default-message-time-to-live P7D \
-            --duplicate-detection-history-time-window PT10M \
-            --enable-duplicate-detection true \
             --output none
     else
         echo "Queue already exists: $QUEUE_NAME"

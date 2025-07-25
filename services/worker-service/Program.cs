@@ -31,6 +31,7 @@ builder.Services.Configure<McpOptions>(builder.Configuration.GetSection(McpOptio
 
 // Register services
 builder.Services.AddSingleton<IMcpClientService, McpClientService>();
+builder.Services.AddSingleton<IClaudeCodeCliService, ClaudeCodeCliService>();
 builder.Services.AddScoped<IClaudeCodeWorkerService, ClaudeCodeWorkerService>();
 builder.Services.AddHostedService<WorkerQueueProcessorService>();
 
@@ -66,26 +67,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-// Initialize MCP connection on startup
-try
-{
-    using var scope = app.Services.CreateScope();
-    var mcpClient = scope.ServiceProvider.GetRequiredService<IMcpClientService>();
-    var connected = await mcpClient.ConnectAsync();
-    
-    if (connected)
-    {
-        Log.Information("MCP connection established on startup");
-    }
-    else
-    {
-        Log.Warning("Failed to establish MCP connection on startup");
-    }
-}
-catch (Exception ex)
-{
-    Log.Error(ex, "Error during startup MCP connection");
-}
+// Skip MCP connection on startup - let it connect when needed
+Log.Information("Skipping MCP connection on startup - will connect on demand");
 
 Log.Information("VoiceCode Worker Service started");
 
