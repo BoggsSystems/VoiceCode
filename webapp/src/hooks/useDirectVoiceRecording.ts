@@ -9,6 +9,7 @@ import {
 } from '../store/slices/voiceSlice';
 import { addMessage } from '../store/slices/chatSlice';
 import audioService from '../services/audioService';
+import { remoteLogger } from '../services/remoteLogger';
 
 export const useDirectVoiceRecording = () => {
   const dispatch = useAppDispatch();
@@ -25,6 +26,8 @@ export const useDirectVoiceRecording = () => {
 
   // Request microphone permission
   const requestPermission = useCallback(async () => {
+    console.log('[useDirectVoiceRecording] Requesting microphone permission...');
+    remoteLogger.info('Requesting microphone permission');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -34,14 +37,26 @@ export const useDirectVoiceRecording = () => {
         },
       });
 
+      console.log('[useDirectVoiceRecording] Permission granted, stream obtained');
+      remoteLogger.info('Microphone permission granted', {
+        streamActive: stream.active,
+        trackCount: stream.getTracks().length
+      });
       setPermissionGranted(true);
       
       // Stop the test stream
       stream.getTracks().forEach(track => track.stop());
+      console.log('[useDirectVoiceRecording] Test stream stopped');
+      return true;
     } catch (error) {
-      console.error('Permission denied:', error);
+      console.error('[useDirectVoiceRecording] Permission denied:', error);
+      remoteLogger.error('Microphone permission denied', {
+        error: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown'
+      });
       dispatch(setError(`Microphone access denied`));
       setPermissionGranted(false);
+      return false;
     }
   }, [dispatch]);
 
@@ -88,12 +103,27 @@ export const useDirectVoiceRecording = () => {
 
   // Start recording
   const startRecording = useCallback(async () => {
+    console.log('[useDirectVoiceRecording] startRecording called');
+    remoteLogger.info('startRecording called', {
+      permissionGranted,
+      hasNavigator: !!navigator.mediaDevices,
+      hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+    });
+    
     if (!permissionGranted) {
-      await requestPermission();
-      if (!permissionGranted) return;
+      console.log('[useDirectVoiceRecording] No permission yet, requesting...');
+      remoteLogger.info('No permission, requesting');
+      const granted = await requestPermission();
+      if (!granted) {
+        console.log('[useDirectVoiceRecording] Permission still not granted, aborting');
+        remoteLogger.warn('Permission denied after request');
+        return;
+      }
     }
 
     try {
+      console.log('[useDirectVoiceRecording] Getting user media stream...');
+      remoteLogger.info('Getting user media stream');
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -102,23 +132,62 @@ export const useDirectVoiceRecording = () => {
         },
       });
 
+      console.log('[useDirectVoiceRecording] Stream obtained successfully');
+      remoteLogger.info('Stream obtained', {
+        streamActive: stream.active,
+        trackCount: stream.getTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
       streamRef.current = stream;
       
+      console.log('[useDirectVoiceRecording] Creating MediaRecorder...');
+      
+      // Check supported MIME types
+      const supportedTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4'
+      ];
+      
+      let selectedType = '';
+      for (const type of supportedTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          selectedType = type;
+          break;
+        }
+      }
+      
+      remoteLogger.info('MediaRecorder setup', {
+        selectedType,
+        supportedTypes: supportedTypes.filter(t => MediaRecorder.isTypeSupported(t))
+      });
+      
       const recorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
+        mimeType: selectedType || undefined,
       });
 
       audioChunksRef.current = [];
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
+          console.log('[useDirectVoiceRecording] Audio data available, size:', event.data.size);
+          remoteLogger.debug('Audio data chunk', { size: event.data.size });
           audioChunksRef.current.push(event.data);
         }
       };
 
       recorder.onstop = async () => {
+        console.log('[useDirectVoiceRecording] Recording stopped, chunks:', audioChunksRef.current.length);
+        remoteLogger.info('Recording stopped', {
+          chunkCount: audioChunksRef.current.length,
+          totalSize: audioChunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0)
+        });
+        
         if (audioChunksRef.current.length > 0) {
           const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          console.log('[useDirectVoiceRecording] Created audio blob, size:', audioBlob.size);
+          remoteLogger.info('Audio blob created', { size: audioBlob.size });
           
           setIsProcessing(true);
           dispatch(setProcessing(true));
@@ -173,20 +242,24 @@ export const useDirectVoiceRecording = () => {
       };
 
       mediaRecorderRef.current = recorder;
+      console.log('[useDirectVoiceRecording] Starting MediaRecorder...');
       recorder.start();
       
+      console.log('[useDirectVoiceRecording] Recording started successfully');
       setIsRecording(true);
       startAudioLevelMonitoring(stream);
       
     } catch (error) {
-      console.error('Error starting recording:', error);
+      console.error('[useDirectVoiceRecording] Error starting recording:', error);
       dispatch(setError(`Failed to start recording: ${error}`));
     }
   }, [dispatch, permissionGranted, requestPermission, startAudioLevelMonitoring]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
+    console.log('[useDirectVoiceRecording] stopRecording called');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log('[useDirectVoiceRecording] Stopping MediaRecorder...');
       mediaRecorderRef.current.stop();
     }
     

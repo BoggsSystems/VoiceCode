@@ -9,7 +9,7 @@ import { initializeSignalR } from './store/slices/signalrSlice';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login/Login';
 import Dashboard from './pages/Dashboard/Dashboard';
-import VoiceChat from './pages/VoiceChat/VoiceChat';
+import SimpleVoiceChat from './pages/VoiceChat/SimpleVoiceChat';
 import TextChat from './pages/TextChat/TextChat';
 import Projects from './pages/Projects/Projects';
 import Settings from './pages/Settings/Settings';
@@ -67,18 +67,16 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/voice" element={<VoiceChat />} />
-          <Route path="/chat" element={<TextChat />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/voice" replace />} />
+        <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+        <Route path="/voice" element={<SimpleVoiceChat />} />
+        <Route path="/chat" element={<Layout><TextChat /></Layout>} />
+        <Route path="/projects" element={<Layout><Projects /></Layout>} />
+        <Route path="/settings" element={<Layout><Settings /></Layout>} />
+        <Route path="/profile" element={<Layout><Profile /></Layout>} />
+        <Route path="*" element={<Navigate to="/voice" replace />} />
+      </Routes>
     </div>
   );
 };
