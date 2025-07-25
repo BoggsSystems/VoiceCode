@@ -17,59 +17,85 @@ export class AudioService {
   }
 
   async transcribeAudio(audioBlob: Blob): Promise<TranscriptionResult> {
+    console.log('[AudioService] transcribeAudio called with blob size:', audioBlob.size);
     try {
       // Convert blob to form data
       const formData = new FormData();
       formData.append('audioFile', audioBlob, 'recording.webm');
       formData.append('language', 'en-US');
 
-      // For testing, we'll use a mock response since auth is bypassed
-      // In production, this would use proper authentication
-      const mockResult: TranscriptionResult = {
-        id: crypto.randomUUID(),
-        transcript: "This is a test transcription. The voice service is currently in demo mode.",
-        confidence: 0.95,
-        language: 'en-US',
-        timestamp: new Date()
-      };
-
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('[AudioService] Calling STT service at:', this.sttUrl);
       
-      return mockResult;
-
-      // Actual implementation would be:
-      /*
+      // Call the actual STT service
       const response = await fetch(`${this.sttUrl}/api/transcription/transcribe`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Authorization': `Bearer ${await this.getAccessToken()}`
-        }
+        // No auth header for now since we're bypassing auth
       });
 
+      console.log('[AudioService] STT response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`STT service error: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('[AudioService] STT error response:', errorText);
+        throw new Error(`STT service error: ${response.status} - ${errorText}`);
       }
 
-      return await response.json();
-      */
+      const result = await response.json();
+      console.log('[AudioService] STT transcription result:', result);
+      
+      // Transform the response to match our interface
+      return {
+        id: result.id || crypto.randomUUID(),
+        transcript: result.text || result.transcript || '',
+        confidence: result.confidence || 0.95,
+        language: result.language || 'en-US',
+        timestamp: new Date(result.timestamp || Date.now())
+      };
     } catch (error) {
-      console.error('Transcription error:', error);
+      console.error('[AudioService] Transcription error:', error);
       throw error;
     }
   }
 
   async processWithClaude(transcript: string): Promise<string> {
-    // Mock Claude response for testing
-    const mockResponses = [
-      "Here's a Python function to calculate factorial:\n\n```python\ndef factorial(n):\n    if n == 0 or n == 1:\n        return 1\n    else:\n        return n * factorial(n - 1)\n```",
-      "I'll help you create a React component. Here's a simple todo list:\n\n```jsx\nfunction TodoList() {\n  const [todos, setTodos] = useState([]);\n  \n  return (\n    <div>\n      <h2>Todo List</h2>\n      {todos.map(todo => <li key={todo.id}>{todo.text}</li>)}\n    </div>\n  );\n}\n```",
-      "Here's how to implement a binary search in JavaScript:\n\n```javascript\nfunction binarySearch(arr, target) {\n  let left = 0;\n  let right = arr.length - 1;\n  \n  while (left <= right) {\n    const mid = Math.floor((left + right) / 2);\n    if (arr[mid] === target) return mid;\n    if (arr[mid] < target) left = mid + 1;\n    else right = mid - 1;\n  }\n  \n  return -1;\n}\n```"
-    ];
+    console.log('[AudioService] processWithClaude called with transcript:', transcript);
+    
+    try {
+      const dispatcherUrl = apiConfig.services.dispatcher;
+      console.log('[AudioService] Calling dispatcher at:', dispatcherUrl);
+      
+      // Call the dispatcher service which will route to Claude
+      const response = await fetch(`${dispatcherUrl}/api/voice/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // No auth header for now since we're bypassing auth
+        },
+        body: JSON.stringify({
+          message: transcript,
+          conversationId: sessionStorage.getItem('voiceConversationId') || crypto.randomUUID(),
+          sessionId: sessionStorage.getItem('voiceSessionId') || crypto.randomUUID(),
+        })
+      });
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return mockResponses[Math.floor(Math.random() * mockResponses.length)];
+      console.log('[AudioService] Dispatcher response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AudioService] Dispatcher error response:', errorText);
+        throw new Error(`Dispatcher service error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('[AudioService] Claude response:', result);
+      
+      return result.response || result.message || 'No response received';
+    } catch (error) {
+      console.error('[AudioService] Claude processing error:', error);
+      // Fallback to a helpful error message
+      return "I'm sorry, I encountered an error processing your request. Please try again.";
+    }
   }
 }
 
