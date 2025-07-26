@@ -1,16 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../hooks/redux';
 import { useDirectVoiceRecording } from '../../hooks/useDirectVoiceRecording';
 import { createConversation } from '../../store/slices/chatSlice';
 import { remoteLogger, setupRemoteConsole } from '../../services/remoteLogger';
+import VoiceService from '../../services/voiceService';
 import './SimpleVoiceChat.css';
 
 const SimpleVoiceChat: React.FC = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [transcript, setTranscript] = useState<string>('');
   const [response, setResponse] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [journeySteps, setJourneySteps] = useState<string[]>([]);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const authToken = localStorage.getItem('auth-token');
+    if (!authToken) {
+      navigate('/login-simple');
+      return;
+    }
+  }, [navigate]);
 
   // Setup remote console logging on mount
   useEffect(() => {
@@ -46,7 +59,11 @@ const SimpleVoiceChat: React.FC = () => {
     permissionGranted,
     isRecording,
     isProcessing,
-  } = useDirectVoiceRecording();
+  } = useDirectVoiceRecording({
+    onJourneyUpdate: (step: string) => {
+      setJourneySteps(prev => [...prev, step]);
+    }
+  });
 
   console.log('[SimpleVoiceChat] Voice recording state:', {
     permissionGranted,
@@ -130,6 +147,7 @@ const SimpleVoiceChat: React.FC = () => {
         remoteLogger.info('Starting recording');
         setTranscript('');
         setResponse('');
+        setJourneySteps(['🎤 Recording started...']);
         startRecording();
       }
     } catch (error) {
@@ -159,8 +177,21 @@ const SimpleVoiceChat: React.FC = () => {
     return `voice-button ${status !== 'idle' ? 'active' : ''} ${status}`;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('auth-token');
+    localStorage.removeItem('auth-user');
+    localStorage.removeItem('auth-timestamp');
+    navigate('/login-simple');
+  };
+
+  const authUser = localStorage.getItem('auth-user') || 'Unknown User';
+
   return (
     <div className="simple-voice-chat">
+      <div className="auth-header">
+        <span className="user-info">Logged in as: {authUser}</span>
+        <button className="logout-button" onClick={handleLogout}>Logout</button>
+      </div>
       <div className="voice-container">
         <button
           className={getButtonClass()}
@@ -195,6 +226,15 @@ const SimpleVoiceChat: React.FC = () => {
 
         {!connected && (
           <p className="connection-status">Connecting to services...</p>
+        )}
+
+        {journeySteps.length > 0 && (
+          <div className="journey-display">
+            <p className="journey-label">Journey:</p>
+            {journeySteps.map((step, index) => (
+              <p key={index} className="journey-step">{step}</p>
+            ))}
+          </div>
         )}
         
         {errorMessage && (

@@ -5,8 +5,11 @@ import {
   setIsRecording, 
   setTranscription, 
   setPartialTranscription,
-  setError 
+  setError,
+  setProcessing
 } from '../store/slices/voiceSlice';
+import { addMessage } from '../store/slices/chatSlice';
+import audioService from '../services/audioService';
 
 export interface UseStreamingAudioResult {
   isRecording: boolean;
@@ -43,8 +46,34 @@ export const useStreamingAudio = (): UseStreamingAudioResult => {
         // Setup event listeners
         const handlePartialTranscription = (event: CustomEvent) => {
           dispatch(setPartialTranscription(event.detail.text));
-          if (event.detail.isFinal) {
-            dispatch(setTranscription(event.detail.text));
+        };
+
+        const handleFinalTranscription = async (event: CustomEvent) => {
+          const transcript = event.detail.text;
+          dispatch(setTranscription(transcript));
+          dispatch(setPartialTranscription(''));
+          
+          // Add user message
+          dispatch(addMessage({
+            type: 'user',
+            content: transcript,
+          }));
+          
+          // Process with Claude
+          dispatch(setProcessing(true));
+          try {
+            const response = await audioService.processWithClaude(transcript);
+            
+            // Add AI response
+            dispatch(addMessage({
+              type: 'assistant',
+              content: response,
+            }));
+          } catch (error) {
+            console.error('Error processing with Claude:', error);
+            dispatch(setError('Failed to process response'));
+          } finally {
+            dispatch(setProcessing(false));
           }
         };
 
@@ -53,12 +82,14 @@ export const useStreamingAudio = (): UseStreamingAudioResult => {
           dispatch(setError(event.detail.message));
         };
 
-        window.addEventListener('partialTranscription', handlePartialTranscription as EventListener);
-        window.addEventListener('streamError', handleStreamError as EventListener);
+        window.addEventListener('partialTranscription', handlePartialTranscription as any);
+        window.addEventListener('finalTranscription', handleFinalTranscription as any);
+        window.addEventListener('streamError', handleStreamError as any);
 
         return () => {
-          window.removeEventListener('partialTranscription', handlePartialTranscription as EventListener);
-          window.removeEventListener('streamError', handleStreamError as EventListener);
+          window.removeEventListener('partialTranscription', handlePartialTranscription as any);
+          window.removeEventListener('finalTranscription', handleFinalTranscription as any);
+          window.removeEventListener('streamError', handleStreamError as any);
         };
       } catch (err) {
         console.error('Failed to initialize streaming service:', err);

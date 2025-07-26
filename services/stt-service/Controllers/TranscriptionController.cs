@@ -10,7 +10,6 @@ namespace VoiceCode.STTService.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-[RequiredScope(RequiredScopesConfigurationKey = "AzureAd:Scopes")]
 public class TranscriptionController : ControllerBase
 {
     private readonly ISTTService _sttService;
