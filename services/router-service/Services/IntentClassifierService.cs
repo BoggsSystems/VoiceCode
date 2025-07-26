@@ -16,10 +16,8 @@ public interface IIntentClassifier
 
 public class IntentClassification
 {
-    public string Intent { get; set; } = string.Empty;
-    public string? Product { get; set; }
-    public double Confidence { get; set; }
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public int Worker { get; set; }
+    public string Instructions { get; set; } = string.Empty;
 }
 
 public class IntentClassifierService : IIntentClassifier
@@ -89,15 +87,21 @@ public class IntentClassifierService : IIntentClassifier
                 return CreateFallbackClassification(transcript);
             }
 
-            var classification = JsonSerializer.Deserialize<IntentClassification>(content);
+            _logger.LogInformation("OpenAI response content: {Content}", content);
+
+            var classification = JsonSerializer.Deserialize<IntentClassification>(content, new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            });
+            
             if (classification == null)
             {
-                _logger.LogWarning("Failed to deserialize OpenAI response");
+                _logger.LogWarning("Failed to deserialize OpenAI response: {Content}", content);
                 return CreateFallbackClassification(transcript);
             }
 
-            _logger.LogInformation("Intent classified as {Intent} for product {Product} with confidence {Confidence}", 
-                classification.Intent, classification.Product, classification.Confidence);
+            _logger.LogInformation("Command classified for Worker {Worker} with instructions: {Instructions}", 
+                classification.Worker, classification.Instructions);
 
             return classification;
         }
@@ -110,43 +114,33 @@ public class IntentClassifierService : IIntentClassifier
 
     private string BuildSystemPrompt()
     {
-        return @"You are an intent classifier for a voice-controlled development system that manages multiple software products.
+        return @"You are a voice command parser for a development system.
 
-Analyze the user's voice command and determine:
-1. The intent (what action they want to perform)
-2. The product they're referring to (if mentioned)
-3. Your confidence level (0.0 to 1.0)
-4. Any relevant metadata
+The user will give a voice command that starts with a worker identifier followed by instructions. The worker can be specified as:
+- ""Worker 1"", ""Worker 2"", etc. (with numbers)
+- ""Worker one"", ""Worker two"", etc. (with words)
 
-Available intents:
-- create_feature: Creating new features, screens, components
-- modify_feature: Updating existing features
-- fix_bug: Fixing errors or issues
-- refactor_code: Improving code quality
-- add_tests: Creating unit or integration tests
-- documentation: Adding or updating documentation
-- deploy: Deployment-related tasks
-- query_status: Asking about project status
-- unclear: When the intent is ambiguous
+Extract:
+1. The worker number as an integer (convert ""one"" to 1, ""two"" to 2, etc.)
+2. The instructions (everything after the worker identifier)
 
-Common products:
-- VoiceCode: The voice coding assistant app
-- FinanceTracker: Financial management app
-- HealthMonitor: Health tracking app
-- EduLearn: Educational platform
-- GameHub: Gaming platform
+Examples:
+- Input: ""Worker 1, create a login page with email and password fields""
+  Output: {""worker"": 1, ""instructions"": ""create a login page with email and password fields""}
+  
+- Input: ""Worker one create the scaffolding for react application""
+  Output: {""worker"": 1, ""instructions"": ""create the scaffolding for react application""}
+  
+- Input: ""Worker two, fix the navigation bug in the header""
+  Output: {""worker"": 2, ""instructions"": ""fix the navigation bug in the header""}
 
-Respond with a JSON object containing:
+If no worker is specified, default to worker 1.
+Remove any trailing punctuation from instructions.
+
+Respond ONLY with a valid JSON object:
 {
-  ""intent"": ""<intent_type>"",
-  ""product"": ""<product_name or null>"",
-  ""confidence"": <0.0-1.0>,
-  ""metadata"": {
-    ""feature_type"": ""<if applicable>"",
-    ""components"": [""<list of components if mentioned>""],
-    ""clarification_needed"": ""<what to ask if unclear>"",
-    ""estimated_complexity"": ""<low/medium/high>""
-  }
+  ""worker"": <number>,
+  ""instructions"": ""<the task instructions>""
 }";
     }
 
@@ -168,47 +162,54 @@ Respond with a JSON object containing:
 
     private IntentClassification CreateFallbackClassification(string transcript)
     {
-        // Simple fallback logic
+        // Simple fallback - try to extract worker number
         var lowerTranscript = transcript.ToLowerInvariant();
+        var workerNumber = 1; // default
         
-        if (lowerTranscript.Contains("create") || lowerTranscript.Contains("add") || lowerTranscript.Contains("new"))
+        // Try to find "worker X" pattern with numbers
+        var match = System.Text.RegularExpressions.Regex.Match(lowerTranscript, @"worker\s*(\d+)");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out var number))
         {
-            return new IntentClassification
+            workerNumber = number;
+        }
+        else
+        {
+            // Try to find "worker one/two/three" pattern
+            var wordMatch = System.Text.RegularExpressions.Regex.Match(lowerTranscript, @"worker\s*(one|two|three|four|five|six|seven|eight|nine|ten)");
+            if (wordMatch.Success)
             {
-                Intent = "create_feature",
-                Confidence = 0.5,
-                Metadata = new Dictionary<string, object>
+                workerNumber = wordMatch.Groups[1].Value switch
                 {
-                    ["fallback"] = true,
-                    ["reason"] = "OpenAI unavailable"
-                }
-            };
+                    "one" => 1,
+                    "two" => 2,
+                    "three" => 3,
+                    "four" => 4,
+                    "five" => 5,
+                    "six" => 6,
+                    "seven" => 7,
+                    "eight" => 8,
+                    "nine" => 9,
+                    "ten" => 10,
+                    _ => 1
+                };
+                match = wordMatch;
+            }
+        }
+        
+        // Remove the worker part to get instructions
+        var instructions = transcript;
+        if (match.Success)
+        {
+            instructions = transcript.Substring(match.Index + match.Length).Trim(' ', ',', '.');
         }
 
-        if (lowerTranscript.Contains("fix") || lowerTranscript.Contains("bug") || lowerTranscript.Contains("error"))
-        {
-            return new IntentClassification
-            {
-                Intent = "fix_bug",
-                Confidence = 0.5,
-                Metadata = new Dictionary<string, object>
-                {
-                    ["fallback"] = true,
-                    ["reason"] = "OpenAI unavailable"
-                }
-            };
-        }
+        _logger.LogInformation("Fallback classification used - Worker: {Worker}, Instructions: {Instructions}", 
+            workerNumber, instructions);
 
         return new IntentClassification
         {
-            Intent = "unclear",
-            Confidence = 0.3,
-            Metadata = new Dictionary<string, object>
-            {
-                ["fallback"] = true,
-                ["reason"] = "OpenAI unavailable",
-                ["clarification_needed"] = "Could you please clarify what you'd like me to do?"
-            }
+            Worker = workerNumber,
+            Instructions = string.IsNullOrWhiteSpace(instructions) ? transcript : instructions
         };
     }
 
@@ -241,9 +242,9 @@ Respond with a JSON object containing:
 
         return new Intent
         {
-            Type = classification.Intent,
-            Category = MapIntentToCategory(classification.Intent),
-            Confidence = classification.Confidence,
+            Type = $"worker_{classification.Worker}",
+            Category = VoiceCode.Common.Enums.IntentCategory.General,
+            Confidence = 1.0,
             OriginalText = transcript,
             Timestamp = DateTime.UtcNow
         };
@@ -261,9 +262,9 @@ Respond with a JSON object containing:
                 Text = text,
                 Intent = new Intent
                 {
-                    Type = classification.Intent,
-                    Category = MapIntentToCategory(classification.Intent),
-                    Confidence = classification.Confidence,
+                    Type = $"worker_{classification.Worker}",
+                    Category = VoiceCode.Common.Enums.IntentCategory.General,
+                    Confidence = 1.0,
                     OriginalText = text,
                     Timestamp = DateTime.UtcNow
                 },

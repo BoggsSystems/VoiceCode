@@ -1,6 +1,5 @@
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Identity.Web;
 using Serilog;
 using StackExchange.Redis;
 using Azure.Messaging.ServiceBus;
@@ -55,8 +54,9 @@ try
         });
     });
 
-    // Add authentication
-    builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAd");
+    // Add simple token authentication only
+    builder.Services.AddAuthentication("SimpleToken")
+        .AddScheme<SimpleTokenAuthOptions, SimpleTokenAuthHandler>("SimpleToken", null);
 
     // Add Redis cache with fallback to in-memory
     var redisConnectionString = builder.Configuration.GetConnectionString("Redis");

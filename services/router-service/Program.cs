@@ -9,6 +9,7 @@ using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using StackExchange.Redis;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
+using Microsoft.AspNetCore.Authentication;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -54,8 +55,8 @@ try
         });
     });
 
-    // Add authentication - support both Azure AD and custom JWT
-    var authBuilder = builder.Services.AddAuthentication("Bearer");
+    // Add authentication - support Azure AD, custom JWT, and simple tokens
+    var authBuilder = builder.Services.AddAuthentication("Multiple");
     
     // Add Azure AD authentication
     authBuilder.AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
@@ -78,11 +79,37 @@ try
         };
     });
     
-    // Configure authorization to accept either auth scheme
+    // Add simple token authentication
+    authBuilder.AddScheme<SimpleTokenAuthOptions, SimpleTokenAuthHandler>("SimpleToken", null);
+    
+    // Configure authorization with a policy scheme selector
+    builder.Services.AddAuthentication()
+        .AddPolicyScheme("Multiple", "Multiple", options =>
+        {
+            options.ForwardDefaultSelector = context =>
+            {
+                var authHeader = context.Request.Headers["Authorization"].ToString();
+                if (authHeader.StartsWith("Bearer ") && authHeader.Length > 50)
+                {
+                    var token = authHeader.Substring("Bearer ".Length);
+                    // Check if it's a proper JWT with 3 parts
+                    var parts = token.Split('.');
+                    if (parts.Length == 3)
+                    {
+                        // Try Azure AD first, then CustomJwt
+                        return "Bearer";
+                    }
+                }
+                // Simple token
+                return "SimpleToken";
+            };
+        });
+    
+    // Configure authorization to accept any auth scheme
     builder.Services.AddAuthorization(options =>
     {
         options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-            .AddAuthenticationSchemes("Bearer", "CustomJwt")
+            .AddAuthenticationSchemes("Bearer", "CustomJwt", "SimpleToken", "Multiple")
             .RequireAuthenticatedUser()
             .Build();
     });

@@ -32,6 +32,9 @@ builder.Services.Configure<McpOptions>(builder.Configuration.GetSection(McpOptio
 // Register services
 builder.Services.AddSingleton<IMcpClientService, McpClientService>();
 builder.Services.AddSingleton<IClaudeCodeCliService, ClaudeCodeCliService>();
+builder.Services.AddHttpClient<IClaudeApiService, ClaudeApiService>();
+builder.Services.AddScoped<IFileOperationExecutor, FileOperationExecutor>();
+builder.Services.AddScoped<IRepositoryAnalyzer, RepositoryAnalyzer>();
 builder.Services.AddScoped<IClaudeCodeWorkerService, ClaudeCodeWorkerService>();
 builder.Services.AddHostedService<WorkerQueueProcessorService>();
 

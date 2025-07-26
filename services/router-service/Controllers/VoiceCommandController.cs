@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VoiceCode.RouterService.Services;
 using VoiceCode.Common.Models;
+using System.Net.Http.Json;
 
 namespace VoiceCode.RouterService.Controllers;
 
@@ -42,8 +43,8 @@ public class VoiceCommandController : ControllerBase
                 ["timestamp"] = DateTime.UtcNow
             });
 
-            _logger.LogInformation("Intent classified: {Intent} with confidence {Confidence}", 
-                classification.Intent, classification.Confidence);
+            _logger.LogInformation("Command classified for Worker {Worker} with instructions: {Instructions}", 
+                classification.Worker, classification.Instructions);
 
             // Step 2: Forward to Dispatcher for execution
             var dispatcherUrl = _configuration["ServiceEndpoints:Dispatcher"] ?? 
@@ -51,31 +52,40 @@ public class VoiceCommandController : ControllerBase
             
             var httpClient = _httpClientFactory.CreateClient();
             
+            // Create the request message with proper headers
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, 
+                $"{dispatcherUrl}/api/dispatcher/execute-task");
+            
             // Forward auth header
             if (Request.Headers.ContainsKey("Authorization"))
             {
-                httpClient.DefaultRequestHeaders.Add("Authorization", Request.Headers["Authorization"].ToString());
+                var authHeader = Request.Headers["Authorization"].ToString();
+                _logger.LogInformation("Forwarding auth header to Dispatcher: {AuthHeaderPrefix}", 
+                    authHeader.Length > 20 ? authHeader.Substring(0, 20) + "..." : authHeader);
+                requestMessage.Headers.Add("Authorization", authHeader);
+            }
+            else
+            {
+                _logger.LogWarning("No Authorization header found in request to forward to Dispatcher");
             }
 
             var dispatcherRequest = new
             {
                 TaskId = Guid.NewGuid().ToString(),
-                OriginalRequest = request.Transcription,
-                Intent = classification.Intent,
-                Confidence = classification.Confidence,
-                Metadata = classification.Metadata,
+                Worker = classification.Worker,
+                Instructions = classification.Instructions,
                 Context = new
                 {
                     UserId = User.Identity?.Name ?? "unknown",
                     SessionId = request.SessionId,
                     Timestamp = DateTime.UtcNow,
-                    AudioMetadata = request.Metadata
+                    OriginalTranscription = request.Transcription
                 }
             };
 
-            var response = await httpClient.PostAsJsonAsync(
-                $"{dispatcherUrl}/api/dispatcher/execute-task", 
-                dispatcherRequest);
+            requestMessage.Content = JsonContent.Create(dispatcherRequest);
+            
+            var response = await httpClient.SendAsync(requestMessage);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -85,17 +95,17 @@ public class VoiceCommandController : ControllerBase
                 return StatusCode((int)response.StatusCode, new { error = "Failed to execute task", details = error });
             }
 
-            var result = await response.Content.ReadFromJsonAsync<dynamic>();
+            var result = await response.Content.ReadFromJsonAsync<TaskExecutionResponse>();
             
             return Ok(new VoiceCommandResponse
             {
                 Success = true,
                 TaskId = dispatcherRequest.TaskId,
-                Intent = classification.Intent,
-                Response = result?.response ?? "Task is being processed",
+                Worker = classification.Worker,
+                Instructions = classification.Instructions,
+                Response = result?.Response ?? "Task is being processed",
                 Metadata = new Dictionary<string, object>
                 {
-                    ["confidence"] = classification.Confidence,
                     ["processing_time_ms"] = (DateTime.UtcNow - request.Timestamp).TotalMilliseconds
                 }
             });
@@ -120,7 +130,18 @@ public class VoiceCommandResponse
 {
     public bool Success { get; set; }
     public string TaskId { get; set; } = string.Empty;
-    public string Intent { get; set; } = string.Empty;
+    public int Worker { get; set; }
+    public string Instructions { get; set; } = string.Empty;
     public string Response { get; set; } = string.Empty;
     public Dictionary<string, object>? Metadata { get; set; }
+}
+
+// Response from Dispatcher
+public class TaskExecutionResponse
+{
+    public string TaskId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Response { get; set; } = string.Empty;
+    public int? WorkerNumber { get; set; }
+    public string? Error { get; set; }
 }
