@@ -54,11 +54,44 @@ try
         });
     });
 
-    // Add authentication
-    builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAd");
+    // Add authentication - support both Azure AD and custom JWT
+    var authBuilder = builder.Services.AddAuthentication("Bearer");
+    
+    // Add Azure AD authentication
+    authBuilder.AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+    
+    // Add custom JWT authentication
+    authBuilder.AddJwtBearer("CustomJwt", options =>
+    {
+        var secretKey = builder.Configuration["Authentication:JwtSecret"] ?? "VoiceCodeDevelopmentSecretKey123!ThisShouldBeInKeyVault";
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                System.Text.Encoding.UTF8.GetBytes(secretKey)),
+            ValidateIssuer = true,
+            ValidIssuer = "voicecode-auth",
+            ValidateAudience = true,
+            ValidAudience = "voicecode-api",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+    
+    // Configure authorization to accept either auth scheme
+    builder.Services.AddAuthorization(options =>
+    {
+        options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+            .AddAuthenticationSchemes("Bearer", "CustomJwt")
+            .RequireAuthenticatedUser()
+            .Build();
+    });
 
     // Add Application Insights
     builder.Services.AddApplicationInsightsTelemetry();
+    
+    // Add HttpClient for proxy requests
+    builder.Services.AddHttpClient();
 
     // Add Redis cache
     builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>

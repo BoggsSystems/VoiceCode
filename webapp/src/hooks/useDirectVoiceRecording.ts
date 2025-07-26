@@ -10,8 +10,13 @@ import {
 import { addMessage } from '../store/slices/chatSlice';
 import audioService from '../services/audioService';
 import { remoteLogger } from '../services/remoteLogger';
+import { convertWebMToWav } from '../utils/audioConverter';
 
-export const useDirectVoiceRecording = () => {
+interface UseDirectVoiceRecordingOptions {
+  onJourneyUpdate?: (step: string) => void;
+}
+
+export const useDirectVoiceRecording = (options: UseDirectVoiceRecordingOptions = {}) => {
   const dispatch = useAppDispatch();
   const [isRecording, setIsRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
@@ -23,6 +28,8 @@ export const useDirectVoiceRecording = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number>();
+  
+  const { onJourneyUpdate } = options;
 
   // Request microphone permission
   const requestPermission = useCallback(async () => {
@@ -185,17 +192,41 @@ export const useDirectVoiceRecording = () => {
         });
         
         if (audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          console.log('[useDirectVoiceRecording] Created audio blob, size:', audioBlob.size);
-          remoteLogger.info('Audio blob created', { size: audioBlob.size });
+          onJourneyUpdate?.('🎯 Recording stopped, processing audio...');
+          
+          const webmBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          console.log('[useDirectVoiceRecording] Created WebM blob, size:', webmBlob.size);
+          remoteLogger.info('WebM blob created', { size: webmBlob.size });
+          
+          onJourneyUpdate?.(`📦 Audio captured: ${(webmBlob.size / 1024).toFixed(1)}KB (WebM)`);
           
           setIsProcessing(true);
           dispatch(setProcessing(true));
-          dispatch(setCurrentTranscript('Processing audio...'));
+          dispatch(setCurrentTranscript('Converting audio format...'));
           
           try {
-            // Transcribe audio
-            const transcriptionResult = await audioService.transcribeAudio(audioBlob);
+            // Convert WebM to WAV
+            onJourneyUpdate?.('🔄 Converting to WAV format...');
+            const wavBlob = await convertWebMToWav(webmBlob);
+            console.log('[useDirectVoiceRecording] Converted to WAV, size:', wavBlob.size);
+            remoteLogger.info('Converted to WAV', { 
+              originalSize: webmBlob.size,
+              wavSize: wavBlob.size,
+              expansion: (wavBlob.size / webmBlob.size).toFixed(2) + 'x'
+            });
+            
+            onJourneyUpdate?.(`✅ Converted to WAV: ${(wavBlob.size / 1024).toFixed(1)}KB`);
+            dispatch(setCurrentTranscript('Sending for transcription...'));
+            
+            onJourneyUpdate?.('🔊 Sending to transcription service...');
+            // Transcribe audio using WAV format
+            const transcriptionResult = await audioService.transcribeAudio(wavBlob);
+            
+            if (transcriptionResult.transcript) {
+              onJourneyUpdate?.(`✅ Transcribed: "${transcriptionResult.transcript}"`);
+            } else {
+              onJourneyUpdate?.('❌ No transcription received');
+            }
             
             // Update UI with transcription
             dispatch(setCurrentTranscript(transcriptionResult.transcript));
@@ -213,7 +244,12 @@ export const useDirectVoiceRecording = () => {
             }));
             
             // Process with Claude
+            onJourneyUpdate?.('🤖 Processing with Claude AI...');
             const claudeResponse = await audioService.processWithClaude(transcriptionResult.transcript);
+            
+            if (claudeResponse) {
+              onJourneyUpdate?.('✅ Response received from Claude');
+            }
             
             // Add AI response
             dispatch(addMessage({
@@ -223,7 +259,20 @@ export const useDirectVoiceRecording = () => {
             
             dispatch(setCurrentTranscript(''));
           } catch (error) {
-            dispatch(setError(`Processing failed: ${error}`));
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            console.error('[useDirectVoiceRecording] Processing error:', error);
+            remoteLogger.error('Audio processing failed', {
+              error: errorMsg,
+              stage: errorMsg.includes('convert') ? 'conversion' : 'transcription'
+            });
+            
+            if (errorMsg.includes('convert')) {
+              onJourneyUpdate?.(`❌ Audio conversion error: ${errorMsg}`);
+              dispatch(setError(`Audio format conversion failed: ${errorMsg}`));
+            } else {
+              onJourneyUpdate?.(`❌ Error: ${errorMsg}`);
+              dispatch(setError(`Processing failed: ${errorMsg}`));
+            }
           } finally {
             setIsProcessing(false);
             dispatch(setProcessing(false));
