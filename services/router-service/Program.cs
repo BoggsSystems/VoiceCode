@@ -118,7 +118,6 @@ try
     builder.Services.AddSingleton<IContextManager, ContextManagerService>();
     builder.Services.AddSingleton<IPromptEnhancer, PromptEnhancerService>();
     builder.Services.AddSingleton<VoiceCode.RouterService.Services.IQueueService, ServiceBusQueueService>();
-    builder.Services.AddHostedService<IntentModelTrainingService>();
 
     // Add health checks
     builder.Services.AddHealthChecks()

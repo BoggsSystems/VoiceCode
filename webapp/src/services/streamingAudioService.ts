@@ -1,6 +1,7 @@
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
-import { apiConfig } from '../config/apiConfig';
+import { apiConfig } from '../config/authConfig';
 import { streamingMetrics } from './streamingMetrics';
+import { remoteLogger } from './remoteLogger';
 
 export interface AudioStreamConfig {
   sampleRate: number;
@@ -72,25 +73,44 @@ export class StreamingAudioService {
   }
 
   async initialize(): Promise<void> {
-    // Build SignalR connection
-    this.connection = new HubConnectionBuilder()
-      .withUrl(`${apiConfig.signalr.hubUrl.replace('/hubs/voice', '/hubs/audiostream')}`)
-      .withAutomaticReconnect({
-        nextRetryDelayInMilliseconds: (retryContext) => {
-          if (retryContext.previousRetryCount === this.config.maxReconnectAttempts) {
-            return null;
+    try {
+      // Use the standard voice hub for now
+      const hubUrl = apiConfig.signalr.hubUrl;
+      console.log('[StreamingAudioService] Connecting to hub:', hubUrl);
+      remoteLogger.info('StreamingAudioService connecting', { hubUrl });
+      
+      // Build SignalR connection
+      this.connection = new HubConnectionBuilder()
+        .withUrl(hubUrl)
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === this.config.maxReconnectAttempts) {
+              return null;
+            }
+            return Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 30000);
           }
-          return Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 30000);
-        }
-      })
-      .configureLogging(LogLevel.Information)
-      .build();
+        })
+        .configureLogging(LogLevel.Information)
+        .build();
 
-    // Setup event handlers
-    this.setupEventHandlers();
+      // Setup event handlers
+      this.setupEventHandlers();
 
-    // Start connection
-    await this.connection.start();
+      // Start connection
+      console.log('[StreamingAudioService] Starting connection...');
+      remoteLogger.info('Starting SignalR connection');
+      await this.connection.start();
+      console.log('[StreamingAudioService] Connected successfully');
+      remoteLogger.info('SignalR connected successfully');
+    } catch (error) {
+      console.error('[StreamingAudioService] Failed to initialize:', error);
+      remoteLogger.error('Failed to connect to streaming service', { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        hubUrl: apiConfig.signalr.hubUrl
+      });
+      throw new Error(`Failed to connect to streaming service: ${error}`);
+    }
   }
 
   private setupEventHandlers(): void {

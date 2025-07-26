@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CORS Test</title>
+</head>
+<body>
+    <h1>VoiceCode CORS/Mixed Content Test</h1>
+    <button onclick="testHTTP()">Test HTTP Request</button>
+    <button onclick="testHTTPS()">Test HTTPS Request</button>
+    <div id="results"></div>
+    
+    <script>
+        function log(message) {
+            document.getElementById('results').innerHTML += '<p>' + message + '</p>';
+        }
+        
+        async function testHTTP() {
+            log('Testing HTTP request to STT service...');
+            try {
+                const response = await fetch('http://135.237.114.216/health');
+                log('HTTP Success! Status: ' + response.status);
+            } catch (error) {
+                log('HTTP Failed: ' + error.message);
+                console.error('Full error:', error);
+            }
+        }
+        
+        async function testHTTPS() {
+            log('Testing HTTPS request...');
+            try {
+                const response = await fetch('https://api.github.com');
+                log('HTTPS Success! Status: ' + response.status);
+            } catch (error) {
+                log('HTTPS Failed: ' + error.message);
+            }
+        }
+        
+        // Check if we're on HTTPS
+        if (window.location.protocol === 'https:') {
+            log('⚠️ This page is served over HTTPS. HTTP requests will be blocked!');
+        } else {
+            log('✅ This page is served over HTTP.');
+        }
+    </script>
+</body>
+</html>

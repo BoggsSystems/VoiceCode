@@ -18,10 +18,7 @@ public class RouteConfiguration
 
 public class IntentClassificationOptions
 {
-    public string TextAnalyticsEndpoint { get; set; } = string.Empty;
-    public string TextAnalyticsKey { get; set; } = string.Empty;
+    public string OpenAIApiKey { get; set; } = string.Empty;
     public double ConfidenceThreshold { get; set; } = 0.7;
-    public bool UseMLModel { get; set; } = true;
-    public string ModelPath { get; set; } = "Models/intent-classifier.zip";
     public bool EnableFallbackClassification { get; set; } = true;
 }

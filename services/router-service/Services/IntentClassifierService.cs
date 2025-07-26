@@ -1,453 +1,289 @@
-using Azure;
-using Azure.AI.TextAnalytics;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Microsoft.ML;
-using System.Text.RegularExpressions;
 using VoiceCode.Common.Models;
-using VoiceCode.Common.Enums;
 using VoiceCode.RouterService.Configuration;
-using VoiceCode.RouterService.Models;
 
 namespace VoiceCode.RouterService.Services;
 
 public interface IIntentClassifier
 {
+    Task<IntentClassification> ClassifyAsync(string transcript, Dictionary<string, object>? metadata = null);
+    
+    // Legacy methods for compatibility
     Task<Intent> ClassifyIntentAsync(string transcript, UserContext context);
     Task<List<IntentAnalysis>> AnalyzeIntentsAsync(string text, string context);
 }
 
+public class IntentClassification
+{
+    public string Intent { get; set; } = string.Empty;
+    public string? Product { get; set; }
+    public double Confidence { get; set; }
+    public Dictionary<string, object> Metadata { get; set; } = new();
+}
+
 public class IntentClassifierService : IIntentClassifier
 {
-    private readonly TextAnalyticsClient? _textAnalyticsClient;
-    private readonly MLContext _mlContext;
-    private readonly IntentClassificationOptions _options;
     private readonly ILogger<IntentClassifierService> _logger;
-    private ITransformer? _mlModel;
-    private readonly Dictionary<string, IntentPattern> _intentPatterns;
+    private readonly HttpClient _httpClient;
+    private readonly IntentClassificationOptions _options;
 
     public IntentClassifierService(
-        IOptions<IntentClassificationOptions> options,
-        ILogger<IntentClassifierService> logger)
+        ILogger<IntentClassifierService> logger,
+        IHttpClientFactory httpClientFactory,
+        IOptions<IntentClassificationOptions> options)
     {
-        _options = options.Value;
         _logger = logger;
-        _mlContext = new MLContext(seed: 0);
-        
-        if (!string.IsNullOrEmpty(_options.TextAnalyticsEndpoint))
-        {
-            _textAnalyticsClient = new TextAnalyticsClient(
-                new Uri(_options.TextAnalyticsEndpoint),
-                new AzureKeyCredential(_options.TextAnalyticsKey));
-        }
-
-        _intentPatterns = InitializeIntentPatterns();
-        LoadMLModel();
+        _httpClient = httpClientFactory.CreateClient();
+        _options = options.Value;
     }
 
-    public async Task<Intent> ClassifyIntentAsync(string transcript, UserContext context)
+    public async Task<IntentClassification> ClassifyAsync(string transcript, Dictionary<string, object>? metadata = null)
     {
         try
         {
-            var intent = new Intent
+            _logger.LogInformation("Classifying intent for transcript: {Transcript}", transcript);
+
+            // Prepare OpenAI request
+            var request = new
             {
-                OriginalText = transcript,
-                Timestamp = DateTime.UtcNow
+                model = "gpt-4-turbo-preview",
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "system",
+                        content = BuildSystemPrompt()
+                    },
+                    new
+                    {
+                        role = "user",
+                        content = BuildUserPrompt(transcript, metadata)
+                    }
+                },
+                temperature = 0.3,
+                max_tokens = 200,
+                response_format = new { type = "json_object" }
             };
 
-            // Try ML model first if available
-            if (_options.UseMLModel && _mlModel != null)
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_options.OpenAIApiKey}");
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "https://api.openai.com/v1/chat/completions", 
+                request);
+
+            if (!response.IsSuccessStatusCode)
             {
-                var mlIntent = ClassifyWithMLModel(transcript);
-                if (mlIntent.Confidence >= _options.ConfidenceThreshold)
-                {
-                    intent = mlIntent;
-                    _logger.LogDebug("ML model classified intent as {Type} with confidence {Confidence}",
-                        intent.Type, intent.Confidence);
-                    return intent;
-                }
+                var error = await response.Content.ReadAsStringAsync();
+                _logger.LogError("OpenAI API error: {StatusCode} - {Error}", response.StatusCode, error);
+                return CreateFallbackClassification(transcript);
             }
 
-            // Try pattern matching
-            var patternIntent = ClassifyWithPatterns(transcript);
-            if (patternIntent.Confidence >= _options.ConfidenceThreshold)
+            var result = await response.Content.ReadFromJsonAsync<OpenAIResponse>();
+            var content = result?.Choices?.FirstOrDefault()?.Message?.Content;
+
+            if (string.IsNullOrEmpty(content))
             {
-                intent = patternIntent;
-                _logger.LogDebug("Pattern matching classified intent as {Type} with confidence {Confidence}",
-                    intent.Type, intent.Confidence);
-                return intent;
+                _logger.LogWarning("Empty response from OpenAI");
+                return CreateFallbackClassification(transcript);
             }
 
-            // Try Azure Text Analytics if available
-            if (_textAnalyticsClient != null)
+            var classification = JsonSerializer.Deserialize<IntentClassification>(content);
+            if (classification == null)
             {
-                var textIntent = await ClassifyWithTextAnalyticsAsync(transcript);
-                if (textIntent.Confidence >= _options.ConfidenceThreshold)
-                {
-                    intent = textIntent;
-                    _logger.LogDebug("Text Analytics classified intent as {Type} with confidence {Confidence}",
-                        intent.Type, intent.Confidence);
-                    return intent;
-                }
+                _logger.LogWarning("Failed to deserialize OpenAI response");
+                return CreateFallbackClassification(transcript);
             }
 
-            // Fallback classification based on keywords
-            if (_options.EnableFallbackClassification)
-            {
-                intent = FallbackClassification(transcript);
-                _logger.LogDebug("Fallback classification resulted in {Type} with confidence {Confidence}",
-                    intent.Type, intent.Confidence);
-            }
+            _logger.LogInformation("Intent classified as {Intent} for product {Product} with confidence {Confidence}", 
+                classification.Intent, classification.Product, classification.Confidence);
 
-            return intent;
+            return classification;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Intent classification failed");
-            return new Intent
+            return CreateFallbackClassification(transcript);
+        }
+    }
+
+    private string BuildSystemPrompt()
+    {
+        return @"You are an intent classifier for a voice-controlled development system that manages multiple software products.
+
+Analyze the user's voice command and determine:
+1. The intent (what action they want to perform)
+2. The product they're referring to (if mentioned)
+3. Your confidence level (0.0 to 1.0)
+4. Any relevant metadata
+
+Available intents:
+- create_feature: Creating new features, screens, components
+- modify_feature: Updating existing features
+- fix_bug: Fixing errors or issues
+- refactor_code: Improving code quality
+- add_tests: Creating unit or integration tests
+- documentation: Adding or updating documentation
+- deploy: Deployment-related tasks
+- query_status: Asking about project status
+- unclear: When the intent is ambiguous
+
+Common products:
+- VoiceCode: The voice coding assistant app
+- FinanceTracker: Financial management app
+- HealthMonitor: Health tracking app
+- EduLearn: Educational platform
+- GameHub: Gaming platform
+
+Respond with a JSON object containing:
+{
+  ""intent"": ""<intent_type>"",
+  ""product"": ""<product_name or null>"",
+  ""confidence"": <0.0-1.0>,
+  ""metadata"": {
+    ""feature_type"": ""<if applicable>"",
+    ""components"": [""<list of components if mentioned>""],
+    ""clarification_needed"": ""<what to ask if unclear>"",
+    ""estimated_complexity"": ""<low/medium/high>""
+  }
+}";
+    }
+
+    private string BuildUserPrompt(string transcript, Dictionary<string, object>? metadata)
+    {
+        var prompt = $"Voice command: \"{transcript}\"";
+        
+        if (metadata != null && metadata.Any())
+        {
+            prompt += "\n\nContext:";
+            foreach (var item in metadata)
             {
-                Type = "unknown",
-                Category = IntentCategory.Unknown,
-                Confidence = 0.0,
-                OriginalText = transcript
+                prompt += $"\n- {item.Key}: {item.Value}";
+            }
+        }
+
+        return prompt;
+    }
+
+    private IntentClassification CreateFallbackClassification(string transcript)
+    {
+        // Simple fallback logic
+        var lowerTranscript = transcript.ToLowerInvariant();
+        
+        if (lowerTranscript.Contains("create") || lowerTranscript.Contains("add") || lowerTranscript.Contains("new"))
+        {
+            return new IntentClassification
+            {
+                Intent = "create_feature",
+                Confidence = 0.5,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["fallback"] = true,
+                    ["reason"] = "OpenAI unavailable"
+                }
             };
         }
+
+        if (lowerTranscript.Contains("fix") || lowerTranscript.Contains("bug") || lowerTranscript.Contains("error"))
+        {
+            return new IntentClassification
+            {
+                Intent = "fix_bug",
+                Confidence = 0.5,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["fallback"] = true,
+                    ["reason"] = "OpenAI unavailable"
+                }
+            };
+        }
+
+        return new IntentClassification
+        {
+            Intent = "unclear",
+            Confidence = 0.3,
+            Metadata = new Dictionary<string, object>
+            {
+                ["fallback"] = true,
+                ["reason"] = "OpenAI unavailable",
+                ["clarification_needed"] = "Could you please clarify what you'd like me to do?"
+            }
+        };
+    }
+
+    // OpenAI response models
+    private class OpenAIResponse
+    {
+        public List<Choice>? Choices { get; set; }
+    }
+
+    private class Choice
+    {
+        public Message? Message { get; set; }
+    }
+
+    private class Message
+    {
+        public string? Content { get; set; }
+    }
+
+    // Legacy method implementations for compatibility
+    public async Task<Intent> ClassifyIntentAsync(string transcript, UserContext context)
+    {
+        var metadata = new Dictionary<string, object>
+        {
+            ["userId"] = context.UserId ?? "unknown",
+            ["sessionId"] = context.SessionId ?? "unknown"
+        };
+
+        var classification = await ClassifyAsync(transcript, metadata);
+
+        return new Intent
+        {
+            Type = classification.Intent,
+            Category = MapIntentToCategory(classification.Intent),
+            Confidence = classification.Confidence,
+            OriginalText = transcript,
+            Timestamp = DateTime.UtcNow
+        };
     }
 
     public async Task<List<IntentAnalysis>> AnalyzeIntentsAsync(string text, string context)
     {
-        var analyses = new List<IntentAnalysis>();
-
-        // Split text into sentences for more granular analysis
-        var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var sentence in sentences)
-        {
-            var trimmedSentence = sentence.Trim();
-            if (string.IsNullOrWhiteSpace(trimmedSentence))
-                continue;
-
-            var intent = await ClassifyIntentAsync(trimmedSentence, new UserContext());
-            
-            analyses.Add(new IntentAnalysis
-            {
-                Text = trimmedSentence,
-                Intent = intent,
-                StartIndex = text.IndexOf(trimmedSentence),
-                EndIndex = text.IndexOf(trimmedSentence) + trimmedSentence.Length
-            });
-        }
-
-        return analyses;
-    }
-
-    private Intent ClassifyWithMLModel(string transcript)
-    {
-        if (_mlModel == null)
-        {
-            return new Intent { Type = "unknown", Confidence = 0.0 };
-        }
-
-        try
-        {
-            var predictionEngine = _mlContext.Model.CreatePredictionEngine<IntentInput, IntentPrediction>(_mlModel);
-            var input = new IntentInput { Text = transcript };
-            var prediction = predictionEngine.Predict(input);
-
-            return new Intent
-            {
-                Type = prediction.PredictedLabel ?? "unknown",
-                Category = MapTypeToCategory(prediction.PredictedLabel ?? "unknown"),
-                Confidence = prediction.Score?.Max() ?? 0.0,
-                OriginalText = transcript
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "ML model prediction failed");
-            return new Intent { Type = "unknown", Confidence = 0.0 };
-        }
-    }
-
-    private Intent ClassifyWithPatterns(string transcript)
-    {
-        var normalizedText = transcript.ToLowerInvariant();
-        Intent? bestMatch = null;
-        double highestScore = 0.0;
-
-        foreach (var pattern in _intentPatterns)
-        {
-            var score = pattern.Value.CalculateScore(normalizedText);
-            if (score > highestScore)
-            {
-                highestScore = score;
-                bestMatch = new Intent
-                {
-                    Type = pattern.Key,
-                    Category = pattern.Value.Category,
-                    Confidence = score,
-                    OriginalText = transcript
-                };
-            }
-        }
-
-        return bestMatch ?? new Intent { Type = "unknown", Confidence = 0.0 };
-    }
-
-    private async Task<Intent> ClassifyWithTextAnalyticsAsync(string transcript)
-    {
-        if (_textAnalyticsClient == null)
-        {
-            return new Intent { Type = "unknown", Confidence = 0.0 };
-        }
-
-        try
-        {
-            // Use key phrase extraction and sentiment analysis to infer intent
-            var keyPhrases = await _textAnalyticsClient.ExtractKeyPhrasesAsync(transcript);
-            var sentiment = await _textAnalyticsClient.AnalyzeSentimentAsync(transcript);
-
-            // Analyze key phrases to determine intent
-            var intent = AnalyzeKeyPhrasesForIntent(keyPhrases.Value.ToList(), sentiment.Value);
-            intent.OriginalText = transcript;
-
-            return intent;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Text Analytics classification failed");
-            return new Intent { Type = "unknown", Confidence = 0.0 };
-        }
-    }
-
-    private Intent FallbackClassification(string transcript)
-    {
-        var normalizedText = transcript.ToLowerInvariant();
-
-        // Simple keyword-based classification
-        if (ContainsAny(normalizedText, "create", "generate", "make", "build", "write", "implement"))
-        {
-            return new Intent
-            {
-                Type = "generate_code",
-                Category = IntentCategory.CodeGeneration,
-                Confidence = 0.6,
-                OriginalText = transcript
-            };
-        }
-
-        if (ContainsAny(normalizedText, "explain", "what", "how", "why", "understand"))
-        {
-            return new Intent
-            {
-                Type = "explain_code",
-                Category = IntentCategory.CodeExplanation,
-                Confidence = 0.6,
-                OriginalText = transcript
-            };
-        }
-
-        if (ContainsAny(normalizedText, "fix", "error", "bug", "issue", "problem", "wrong"))
-        {
-            return new Intent
-            {
-                Type = "fix_error",
-                Category = IntentCategory.ErrorFixing,
-                Confidence = 0.6,
-                OriginalText = transcript
-            };
-        }
-
-        if (ContainsAny(normalizedText, "refactor", "improve", "optimize", "clean"))
-        {
-            return new Intent
-            {
-                Type = "refactor_code",
-                Category = IntentCategory.CodeRefactoring,
-                Confidence = 0.6,
-                OriginalText = transcript
-            };
-        }
-
-        if (ContainsAny(normalizedText, "test", "unit test", "integration test"))
-        {
-            return new Intent
-            {
-                Type = "create_tests",
-                Category = IntentCategory.Testing,
-                Confidence = 0.6,
-                OriginalText = transcript
-            };
-        }
-
-        return new Intent
-        {
-            Type = "general",
-            Category = IntentCategory.General,
-            Confidence = 0.5,
-            OriginalText = transcript
-        };
-    }
-
-    private Dictionary<string, IntentPattern> InitializeIntentPatterns()
-    {
-        return new Dictionary<string, IntentPattern>
-        {
-            ["generate_code"] = new IntentPattern
-            {
-                Category = IntentCategory.CodeGeneration,
-                RequiredKeywords = new[] { "create", "generate", "make", "build", "implement", "write" },
-                OptionalKeywords = new[] { "function", "class", "method", "component", "service", "api" },
-                NegativeKeywords = new[] { "don't", "not", "without" },
-                Patterns = new[]
-                {
-                    @"(create|generate|make|build|write|implement)\s+(?:a\s+)?(\w+)",
-                    @"(?:can you|could you|please)?\s*(create|generate|make|build)",
-                    @"(?:i need|i want)\s+(?:a\s+)?(?:new\s+)?(\w+)"
-                }
-            },
-            ["explain_code"] = new IntentPattern
-            {
-                Category = IntentCategory.CodeExplanation,
-                RequiredKeywords = new[] { "explain", "what", "how", "why", "understand", "tell" },
-                OptionalKeywords = new[] { "does", "work", "mean", "this", "code" },
-                Patterns = new[]
-                {
-                    @"(explain|what|how)\s+(?:does\s+)?(?:this\s+)?(\w+)",
-                    @"(?:can you|could you)?\s*(explain|tell)\s+(?:me\s+)?(?:about|what)"
-                }
-            },
-            ["fix_error"] = new IntentPattern
-            {
-                Category = IntentCategory.ErrorFixing,
-                RequiredKeywords = new[] { "fix", "error", "bug", "issue", "problem", "wrong", "broken" },
-                OptionalKeywords = new[] { "debug", "solve", "resolve", "help" },
-                Patterns = new[]
-                {
-                    @"(fix|solve|resolve|debug)\s+(?:this\s+)?(?:error|bug|issue|problem)",
-                    @"(?:there's|there is|i have)\s+(?:an?\s+)?(error|bug|issue|problem)"
-                }
-            },
-            ["refactor_code"] = new IntentPattern
-            {
-                Category = IntentCategory.CodeRefactoring,
-                RequiredKeywords = new[] { "refactor", "improve", "optimize", "clean", "better" },
-                OptionalKeywords = new[] { "performance", "readable", "maintainable", "efficient" },
-                Patterns = new[]
-                {
-                    @"(refactor|improve|optimize|clean)\s+(?:this\s+)?(?:code|function|method)",
-                    @"make\s+(?:this\s+)?(?:code\s+)?(?:more\s+)?(readable|efficient|better)"
-                }
-            }
-        };
-    }
-
-    private VoiceCode.Common.Enums.IntentCategory MapTypeToCategory(string type)
-    {
-        return type switch
-        {
-            "generate_code" => IntentCategory.CodeGeneration,
-            "explain_code" => IntentCategory.CodeExplanation,
-            "fix_error" => IntentCategory.ErrorFixing,
-            "refactor_code" => IntentCategory.CodeRefactoring,
-            "create_tests" => IntentCategory.Testing,
-            "document_code" => IntentCategory.Documentation,
-            "manage_project" => IntentCategory.ProjectManagement,
-            "system_command" => IntentCategory.SystemCommand,
-            _ => IntentCategory.General
-        };
-    }
-
-    private Intent AnalyzeKeyPhrasesForIntent(List<string> keyPhrases, DocumentSentiment sentiment)
-    {
-        // Analyze key phrases to determine intent type
-        var phrases = string.Join(" ", keyPhrases).ToLowerInvariant();
-
-        foreach (var pattern in _intentPatterns)
-        {
-            var score = 0.0;
-            var requiredCount = pattern.Value.RequiredKeywords.Count(k => phrases.Contains(k));
-            var optionalCount = pattern.Value.OptionalKeywords.Count(k => phrases.Contains(k));
-            
-            if (requiredCount > 0)
-            {
-                score = (requiredCount / (double)pattern.Value.RequiredKeywords.Length) * 0.7 +
-                       (optionalCount / (double)pattern.Value.OptionalKeywords.Length) * 0.3;
-
-                if (score >= 0.5)
-                {
-                    return new Intent
-                    {
-                        Type = pattern.Key,
-                        Category = pattern.Value.Category,
-                        Confidence = score
-                    };
-                }
-            }
-        }
-
-        return new Intent { Type = "general", Category = IntentCategory.General, Confidence = 0.5 };
-    }
-
-    private bool ContainsAny(string text, params string[] keywords)
-    {
-        return keywords.Any(keyword => text.Contains(keyword));
-    }
-
-    private void LoadMLModel()
-    {
-        if (!_options.UseMLModel || string.IsNullOrEmpty(_options.ModelPath))
-            return;
-
-        try
-        {
-            if (File.Exists(_options.ModelPath))
-            {
-                _mlModel = _mlContext.Model.Load(_options.ModelPath, out _);
-                _logger.LogInformation("Loaded ML model from {Path}", _options.ModelPath);
-            }
-            else
-            {
-                _logger.LogWarning("ML model file not found at {Path}", _options.ModelPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load ML model");
-        }
-    }
-}
-
-public class IntentPattern
-{
-    public VoiceCode.Common.Enums.IntentCategory Category { get; set; }
-    public string[] RequiredKeywords { get; set; } = Array.Empty<string>();
-    public string[] OptionalKeywords { get; set; } = Array.Empty<string>();
-    public string[] NegativeKeywords { get; set; } = Array.Empty<string>();
-    public string[] Patterns { get; set; } = Array.Empty<string>();
-
-    public double CalculateScore(string text)
-    {
-        // Check for negative keywords
-        if (NegativeKeywords.Any(k => text.Contains(k)))
-            return 0.0;
-
-        var score = 0.0;
+        // Simple implementation that analyzes the entire text as one intent
+        var classification = await ClassifyAsync(text);
         
-        // Check required keywords
-        var requiredMatches = RequiredKeywords.Count(k => text.Contains(k));
-        if (requiredMatches == 0)
-            return 0.0;
-        
-        score += (requiredMatches / (double)RequiredKeywords.Length) * 0.5;
+        return new List<IntentAnalysis>
+        {
+            new IntentAnalysis
+            {
+                Text = text,
+                Intent = new Intent
+                {
+                    Type = classification.Intent,
+                    Category = MapIntentToCategory(classification.Intent),
+                    Confidence = classification.Confidence,
+                    OriginalText = text,
+                    Timestamp = DateTime.UtcNow
+                },
+                StartIndex = 0,
+                EndIndex = text.Length
+            }
+        };
+    }
 
-        // Check optional keywords
-        var optionalMatches = OptionalKeywords.Count(k => text.Contains(k));
-        score += (optionalMatches / (double)Math.Max(OptionalKeywords.Length, 1)) * 0.3;
-
-        // Check patterns
-        var patternMatches = Patterns.Count(p => Regex.IsMatch(text, p, RegexOptions.IgnoreCase));
-        score += (patternMatches / (double)Math.Max(Patterns.Length, 1)) * 0.2;
-
-        return Math.Min(score, 1.0);
+    private VoiceCode.Common.Enums.IntentCategory MapIntentToCategory(string intent)
+    {
+        return intent switch
+        {
+            "create_feature" => VoiceCode.Common.Enums.IntentCategory.CodeGeneration,
+            "modify_feature" => VoiceCode.Common.Enums.IntentCategory.CodeGeneration,
+            "fix_bug" => VoiceCode.Common.Enums.IntentCategory.ErrorFixing,
+            "refactor_code" => VoiceCode.Common.Enums.IntentCategory.CodeRefactoring,
+            "add_tests" => VoiceCode.Common.Enums.IntentCategory.Testing,
+            "documentation" => VoiceCode.Common.Enums.IntentCategory.Documentation,
+            _ => VoiceCode.Common.Enums.IntentCategory.General
+        };
     }
 }
