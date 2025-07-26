@@ -27,36 +27,26 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y \
         libasound2 \
-        libatk1.0-0 \
-        libcairo2 \
-        libgtk-3-0 \
-        libpango-1.0-0 \
-        libgdk-pixbuf2.0-0 \
-        libx11-xcb1 \
-        libxcb-dri3-0 \
-        libxss1 \
-        libgconf-2-4 \
-        libxcomposite1 \
-        libxcursor1 \
-        libxdamage1 \
-        libxi6 \
-        libxtst6 \
-        libappindicator3-1 \
-        libnss3 \
-        libnspr4 \
-        libsecret-1-0 \
         ca-certificates \
-        fonts-liberation \
-        libasound2-plugins \
-        libatk-bridge2.0-0 \
-        libatspi2.0-0 \
-        libdrm2 \
-        libgbm1 \
-        libxkbcommon0 \
-        libxrandr2 \
-        xdg-utils \
-        wget && \
+        wget \
+        curl && \
     rm -rf /var/lib/apt/lists/*
+
+# Install libssl1.1 manually (required for Speech SDK, not available in Debian 12)
+# Handle both amd64 and arm64 architectures
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+        wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
+        dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
+        rm libssl1.1_1.1.1f-1ubuntu2_amd64.deb; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        wget http://ports.ubuntu.com/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_arm64.deb && \
+        dpkg -i libssl1.1_1.1.1f-1ubuntu2_arm64.deb && \
+        rm libssl1.1_1.1.1f-1ubuntu2_arm64.deb; \
+    else \
+        echo "Unsupported architecture: $ARCH"; \
+        exit 1; \
+    fi
 
 # Copy published app
 COPY --from=build /app/publish .

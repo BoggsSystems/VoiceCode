@@ -72,30 +72,45 @@ public class SpeechToTextService : ISTTService
                 // Enable language ID priority for faster recognition
                 _speechConfig.SetProperty("SPEECH-SingleLanguageIdPriority", "Latency");
 
-                using var audioStream = new MemoryStream(audioData);
-                using var audioConfig = AudioConfig.FromStreamInput(AudioInputStream.CreatePushStream());
-                using var recognizer = new SpeechRecognizer(_speechConfig, audioConfig);
+                AudioConfig audioInput;
+                
+                // Check if the audio data is a WAV file (starts with "RIFF")
+                bool isWavFile = audioData.Length > 4 && 
+                    audioData[0] == 0x52 && audioData[1] == 0x49 && 
+                    audioData[2] == 0x46 && audioData[3] == 0x46;
+                
+                string? tempWavFile = null;
+                
+                if (isWavFile)
+                {
+                    _logger.LogInformation("Detected WAV file format");
+                    // Create a temporary file for WAV data (Speech SDK requires file path for WAV)
+                    tempWavFile = Path.GetTempFileName();
+                    await File.WriteAllBytesAsync(tempWavFile, audioData);
+                    audioInput = AudioConfig.FromWavFileInput(tempWavFile);
+                }
+                else
+                {
+                    _logger.LogInformation("Detected raw PCM format, using push stream");
+                    // For raw PCM, use push stream with specific format
+                    var pushStream = AudioInputStream.CreatePushStream(
+                        AudioStreamFormat.GetWaveFormatPCM(16000, 16, 1)); // 16kHz, 16-bit, mono
+                    pushStream.Write(audioData);
+                    pushStream.Close();
+                    audioInput = AudioConfig.FromStreamInput(pushStream);
+                }
+                
+                using var recognizer = new SpeechRecognizer(_speechConfig, audioInput);
 
                 // Configure recognition settings
                 recognizer.Properties.SetProperty(
                     PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
                     "3000");
 
-                // Create push stream and write audio data
-                using var pushStream = AudioInputStream.CreatePushStream();
-                using var audioInput = AudioConfig.FromStreamInput(pushStream);
-                
-                // Write audio data to stream
-                pushStream.Write(audioData);
-                pushStream.Close();
-
-                // Create recognizer with the audio input
-                using var streamRecognizer = new SpeechRecognizer(_speechConfig, audioInput);
-
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
                 // Perform recognition
-                var recognitionResult = await streamRecognizer.RecognizeOnceAsync();
+                var recognitionResult = await recognizer.RecognizeOnceAsync();
                 
                 stopwatch.Stop();
                 result.DurationMs = stopwatch.ElapsedMilliseconds;
@@ -136,6 +151,20 @@ public class SpeechToTextService : ISTTService
                     default:
                         _logger.LogError("Unexpected recognition result: {Reason}", recognitionResult.Reason);
                         throw new InvalidOperationException($"Unexpected recognition result: {recognitionResult.Reason}");
+                }
+
+                // Clean up temporary WAV file if created
+                if (tempWavFile != null && File.Exists(tempWavFile))
+                {
+                    try 
+                    { 
+                        File.Delete(tempWavFile); 
+                        _logger.LogDebug("Cleaned up temporary WAV file");
+                    } 
+                    catch (Exception ex) 
+                    { 
+                        _logger.LogWarning(ex, "Failed to delete temporary WAV file");
+                    }
                 }
 
                 return result;
