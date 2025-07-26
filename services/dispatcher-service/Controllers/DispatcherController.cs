@@ -33,55 +33,40 @@ public class DispatcherController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Executing task {TaskId} with intent {Intent}", 
-                request.TaskId, request.Intent);
+            _logger.LogInformation("Executing task {TaskId} for Worker {Worker} with instructions: {Instructions}", 
+                request.TaskId, request.Worker, request.Instructions);
 
-            // Handle clarification requests
-            if (request.Intent == "unclear" && request.Metadata?.ContainsKey("clarification_needed") == true)
-            {
-                return Ok(new TaskExecutionResponse
-                {
-                    TaskId = request.TaskId,
-                    Status = "clarification_needed",
-                    Response = request.Metadata["clarification_needed"].ToString(),
-                    RequiresClarification = true
-                });
-            }
-
-            // Determine which worker should handle this task
-            var workerType = DetermineWorkerType(request);
-            
-            if (string.IsNullOrEmpty(workerType))
+            // Validate worker number
+            if (request.Worker < 1 || request.Worker > 10) // Assuming max 10 workers
             {
                 return BadRequest(new TaskExecutionResponse
                 {
                     TaskId = request.TaskId,
                     Status = "failed",
-                    Response = "Could not determine appropriate worker for this task",
-                    Error = "No suitable worker found"
+                    Response = $"Invalid worker number: {request.Worker}. Please use Worker 1-10.",
+                    Error = "Invalid worker number"
                 });
             }
 
-            _logger.LogInformation("Routing task to {WorkerType} worker", workerType);
+            _logger.LogInformation("Routing task to Worker {Worker}", request.Worker);
 
             // Create simple worker payload
             var workerPayload = new WorkerTaskPayload
             {
                 TaskId = request.TaskId,
-                Command = request.OriginalRequest,
+                Command = request.Instructions,
                 Context = new WorkerContext
                 {
-                    Product = request.Metadata?.GetValueOrDefault("product")?.ToString(),
-                    Intent = request.Intent,
+                    WorkerNumber = request.Worker,
                     UserId = request.Context?.UserId,
                     SessionId = request.Context?.SessionId,
-                    Metadata = request.Metadata ?? new Dictionary<string, object>()
+                    OriginalTranscription = request.Context?.OriginalTranscription
                 },
                 ResponseChannel = "worker-results"
             };
 
             // Send to appropriate worker queue
-            var queueName = $"worker-{workerType}-tasks";
+            var queueName = $"worker-{request.Worker}-tasks";
             
             try
             {
@@ -90,7 +75,7 @@ public class DispatcherController : ControllerBase
                 {
                     SessionId = request.Context?.SessionId ?? Guid.NewGuid().ToString(),
                     MessageId = request.TaskId,
-                    Subject = request.Intent,
+                    Subject = $"worker-{request.Worker}",
                     ContentType = "application/json",
                     TimeToLive = TimeSpan.FromMinutes(5)
                 };
@@ -111,8 +96,8 @@ public class DispatcherController : ControllerBase
             {
                 TaskId = request.TaskId,
                 Status = "processing",
-                Response = $"Your request is being processed by the {workerType} team.",
-                WorkerType = workerType
+                Response = $"Your request is being processed by Worker {request.Worker}.",
+                WorkerNumber = request.Worker
             });
         }
         catch (Exception ex)
@@ -128,45 +113,14 @@ public class DispatcherController : ControllerBase
         }
     }
 
-    private string DetermineWorkerType(TaskExecutionRequest request)
-    {
-        // Use product from metadata if available
-        if (request.Metadata?.TryGetValue("product", out var product) == true && product != null)
-        {
-            var productName = product.ToString()?.ToLowerInvariant();
-            return productName switch
-            {
-                "voicecode" => "voicecode",
-                "financetracker" => "financetracker",
-                "healthmonitor" => "healthmonitor",
-                "edulearn" => "edulearn",
-                "gamehub" => "gamehub",
-                _ => "general"
-            };
-        }
-
-        // Fall back to intent-based routing if no specific product
-        return request.Intent switch
-        {
-            "create_feature" => "development",
-            "fix_bug" => "development",
-            "refactor_code" => "development",
-            "add_tests" => "testing",
-            "documentation" => "documentation",
-            "deploy" => "devops",
-            _ => "general"
-        };
-    }
 }
 
 // Request/Response DTOs
 public class TaskExecutionRequest
 {
     public string TaskId { get; set; } = string.Empty;
-    public string OriginalRequest { get; set; } = string.Empty;
-    public string Intent { get; set; } = string.Empty;
-    public double Confidence { get; set; }
-    public Dictionary<string, object>? Metadata { get; set; }
+    public int Worker { get; set; }
+    public string Instructions { get; set; } = string.Empty;
     public TaskContext? Context { get; set; }
 }
 
@@ -175,7 +129,7 @@ public class TaskContext
     public string? UserId { get; set; }
     public string? SessionId { get; set; }
     public DateTime Timestamp { get; set; }
-    public Dictionary<string, object>? AudioMetadata { get; set; }
+    public string? OriginalTranscription { get; set; }
 }
 
 public class TaskExecutionResponse
@@ -183,9 +137,8 @@ public class TaskExecutionResponse
     public string TaskId { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string Response { get; set; } = string.Empty;
-    public string? WorkerType { get; set; }
+    public int? WorkerNumber { get; set; }
     public string? Error { get; set; }
-    public bool RequiresClarification { get; set; }
 }
 
 // Simple worker payload
@@ -199,9 +152,8 @@ public class WorkerTaskPayload
 
 public class WorkerContext
 {
-    public string? Product { get; set; }
-    public string? Intent { get; set; }
+    public int WorkerNumber { get; set; }
     public string? UserId { get; set; }
     public string? SessionId { get; set; }
-    public Dictionary<string, object> Metadata { get; set; } = new();
+    public string? OriginalTranscription { get; set; }
 }

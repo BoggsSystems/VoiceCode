@@ -3,10 +3,9 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-# Install Claude Code CLI and git
+# Install git for repository operations
 RUN apt-get update && \
-    apt-get install -y curl git && \
-    curl -fsSL https://storage.googleapis.com/anthropic-public/claude-code/install.sh | sh && \
+    apt-get install -y git && \
     rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build

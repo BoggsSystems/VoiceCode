@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using VoiceCode.WorkerService.Configuration;
 using VoiceCode.WorkerService.Models;
+using System.Text;
 
 namespace VoiceCode.WorkerService.Services;
 
@@ -15,17 +16,23 @@ public interface IClaudeCodeWorkerService
 public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
 {
     private readonly ILogger<ClaudeCodeWorkerService> _logger;
-    private readonly IClaudeCodeCliService _claudeCodeCli;
+    private readonly IClaudeApiService _claudeApi;
+    private readonly IFileOperationExecutor _fileOperationExecutor;
+    private readonly IRepositoryAnalyzer _repositoryAnalyzer;
     private readonly WorkerOptions _options;
     private readonly WorkerStatus _status;
     
     public ClaudeCodeWorkerService(
         ILogger<ClaudeCodeWorkerService> logger,
-        IClaudeCodeCliService claudeCodeCli,
+        IClaudeApiService claudeApi,
+        IFileOperationExecutor fileOperationExecutor,
+        IRepositoryAnalyzer repositoryAnalyzer,
         IOptions<WorkerOptions> options)
     {
         _logger = logger;
-        _claudeCodeCli = claudeCodeCli;
+        _claudeApi = claudeApi;
+        _fileOperationExecutor = fileOperationExecutor;
+        _repositoryAnalyzer = repositoryAnalyzer;
         _options = options.Value;
         _status = new WorkerStatus
         {
@@ -36,7 +43,12 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
 
     public async Task<WorkerTaskResult> ExecuteTaskAsync(WorkerTask task)
     {
-        _logger.LogInformation("Executing task {TaskId}: {Description}", task.Id, task.Description);
+        _logger.LogInformation("=== CLAUDE CODE WORKER EXECUTION STARTED ===");
+        _logger.LogInformation("Task ID: {TaskId}", task.Id);
+        _logger.LogInformation("Task Type: {Type}", task.Type);
+        _logger.LogInformation("Description: {Description}", task.Description);
+        _logger.LogInformation("Workspace ID: {WorkspaceId}", task.WorkspaceId);
+        _logger.LogInformation("Parameters: {Parameters}", string.Join(", ", task.Parameters.Select(p => $"{p.Key}={p.Value}")));
         
         var result = new WorkerTaskResult
         {
@@ -48,53 +60,85 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
         {
             _status.State = WorkerState.Busy;
             _status.CurrentTaskId = task.Id;
+            _logger.LogInformation("Worker state changed to BUSY");
             task.StartedAt = DateTime.UtcNow;
 
             // Initialize workspace
             await InitializeWorkspaceAsync(task.WorkspaceId);
 
             // Extract voice command from parameters
+            _logger.LogInformation("Extracting voice command from parameters...");
             var voiceCommand = task.Parameters.GetValueOrDefault("voiceCommand")?.ToString();
+            _logger.LogInformation("Voice command extracted: {VoiceCommand}", voiceCommand ?? "null");
             
             if (string.IsNullOrEmpty(voiceCommand))
             {
+                _logger.LogError("Voice command is null or empty. Parameters: {Parameters}", 
+                    string.Join(", ", task.Parameters.Select(p => $"{p.Key}={p.Value}")));
                 throw new ArgumentException("Voice command is required");
             }
             
-            _logger.LogInformation("Executing Claude Code CLI with command: {VoiceCommand}", voiceCommand);
+            // Analyze repository context
+            _logger.LogInformation("Analyzing repository context...");
+            var workspaceRoot = "/workspace"; // Default workspace location
+            var repoContext = await _repositoryAnalyzer.AnalyzeRepositoryAsync(workspaceRoot);
+            _logger.LogInformation("Repository analyzed - Type: {Type}, Files: {FileCount}", 
+                repoContext.ProjectType, repoContext.RelevantFiles.Count);
             
-            // Execute the voice command using Claude Code CLI
-            var claudeResult = await _claudeCodeCli.ExecuteCommandAsync(voiceCommand, task.WorkspaceId);
+            // Generate file operations using Claude API
+            _logger.LogInformation("Calling Claude API to generate file operations...");
+            var fileOperations = await _claudeApi.GenerateFileOperationsAsync(voiceCommand, repoContext);
+            _logger.LogInformation("Claude API returned {Count} operations", fileOperations.Operations.Count);
             
-            // Log Claude's output immediately
-            _logger.LogInformation("Claude Code execution completed for task {TaskId}:\n" +
-                "Exit Code: {ExitCode}\n" +
-                "Success: {Success}\n" +
-                "Output:\n{Output}\n" +
-                "Error:\n{Error}",
-                task.Id, claudeResult.ExitCode, claudeResult.Success, 
-                claudeResult.Output, claudeResult.Error);
+            // Execute file operations
+            _logger.LogInformation("Executing file operations...");
+            var executionResult = await _fileOperationExecutor.ExecuteOperationsAsync(
+                fileOperations.Operations, 
+                workspaceRoot);
             
-            // Build the result
+            _logger.LogInformation("File operations completed: {Success}/{Total} successful",
+                executionResult.SuccessfulOperations, executionResult.TotalOperations);
+            
+            // Build comprehensive result
+            var summaryBuilder = new System.Text.StringBuilder();
+            summaryBuilder.AppendLine(fileOperations.Summary);
+            
+            if (executionResult.FailedOperations > 0)
+            {
+                summaryBuilder.AppendLine($"\nNote: {executionResult.FailedOperations} operations failed.");
+            }
+            
             result = new WorkerTaskResult
             {
                 TaskId = task.Id,
-                Success = claudeResult.Success,
-                Summary = claudeResult.Output,
-                Error = claudeResult.Error,
+                Success = executionResult.FailedOperations == 0,
+                Summary = summaryBuilder.ToString(),
+                Error = executionResult.FailedOperations > 0 
+                    ? string.Join("; ", executionResult.ExecutedOperations
+                        .Where(op => !op.Success)
+                        .Select(op => $"{op.Operation.Path}: {op.Error}"))
+                    : null,
+                FileOperations = executionResult.ExecutedOperations.Select(op => new FileOperation
+                {
+                    Type = op.Operation.Type,
+                    FilePath = op.Operation.Path,
+                    Content = op.ResultContent,
+                    OldContent = op.OriginalContent
+                }).ToList(),
                 Metadata = new Dictionary<string, object>
                 {
                     ["voiceCommand"] = voiceCommand,
                     ["workerId"] = _status.WorkerId,
-                    ["exitCode"] = claudeResult.ExitCode,
+                    ["projectType"] = repoContext.ProjectType,
+                    ["operationsRequested"] = fileOperations.Operations.Count,
+                    ["operationsSucceeded"] = executionResult.SuccessfulOperations,
                     ["timestamp"] = DateTime.UtcNow
                 }
             };
             
-            if (!claudeResult.Success)
+            if (!result.Success)
             {
-                _logger.LogWarning("Claude Code execution failed with exit code {ExitCode}: {Error}", 
-                    claudeResult.ExitCode, claudeResult.Error);
+                _logger.LogWarning("Some file operations failed. See error details.");
             }
 
             task.CompletedAt = DateTime.UtcNow;
@@ -105,11 +149,17 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error executing task {TaskId}", task.Id);
+            _logger.LogError(ex, "=== ERROR IN CLAUDE CODE WORKER ===");
+            _logger.LogError("Task ID: {TaskId}", task.Id);
+            _logger.LogError("Exception Type: {ExceptionType}", ex.GetType().Name);
+            _logger.LogError("Exception Message: {ExceptionMessage}", ex.Message);
+            _logger.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
+            
             task.Status = WorkerTaskStatus.Failed;
             task.Error = ex.Message;
             result.Success = false;
             result.Error = ex.Message;
+            result.Summary = $"Error: {ex.Message}";
             _status.FailedTasks++;
         }
         finally
@@ -117,6 +167,8 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
             _status.State = WorkerState.Idle;
             _status.CurrentTaskId = null;
             _status.LastHeartbeat = DateTime.UtcNow;
+            _logger.LogInformation("Worker state changed back to IDLE");
+            _logger.LogInformation("=== CLAUDE CODE WORKER EXECUTION COMPLETED ===");
         }
 
         return result;
