@@ -9,7 +9,7 @@ import SignalRDebugPanel from '../../components/SignalRDebugPanel/SignalRDebugPa
 import AudioPlayer from '../../components/AudioPlayer/AudioPlayer';
 import './SimpleVoiceChat.css';
 
-const BUILD_VERSION = '1.0.9';
+const BUILD_VERSION = '1.0.14';
 const BUILD_TIME = new Date().toISOString();
 
 const SimpleVoiceChat: React.FC = () => {
