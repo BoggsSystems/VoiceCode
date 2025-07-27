@@ -33,8 +33,8 @@ public class DispatcherController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Executing task {TaskId} for Worker {Worker} with instructions: {Instructions}", 
-                request.TaskId, request.Worker, request.Instructions);
+            _logger.LogInformation("Executing task {TaskId} for Worker {Worker} with instructions: {Instructions}, SessionId: {SessionId}", 
+                request.TaskId, request.Worker, request.Instructions, request.Context?.SessionId ?? "none");
 
             // Validate worker number
             if (request.Worker < 1 || request.Worker > 10) // Assuming max 10 workers

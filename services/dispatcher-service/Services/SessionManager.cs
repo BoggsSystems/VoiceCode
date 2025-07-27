@@ -9,10 +9,12 @@ namespace VoiceCode.DispatcherService.Services;
 public interface ISessionManager
 {
     Task<UserSession> CreateSessionAsync(string userId, string connectionId);
+    Task<UserSession> CreateSessionAsync(string userId, string connectionId, string sessionId);
     Task<UserSession?> GetSessionAsync(string sessionId);
     Task<UserSession?> GetSessionByConnectionIdAsync(string connectionId);
     Task<List<UserSession>> GetActiveSessionsAsync();
     Task UpdateSessionActivityAsync(string sessionId);
+    Task UpdateSessionConnectionAsync(string sessionId, string connectionId);
     Task UpdateSessionContextAsync(string sessionId, Dictionary<string, object> context);
     Task EndSessionAsync(string sessionId);
     Task<int> GetActiveSessionCountAsync();
@@ -63,6 +65,57 @@ public class SessionManager : ISessionManager
 
         _logger.LogInformation("Created session {SessionId} for user {UserId}", session.Id, userId);
         return Task.FromResult(session);
+    }
+
+    public Task<UserSession> CreateSessionAsync(string userId, string connectionId, string sessionId)
+    {
+        var session = new UserSession
+        {
+            Id = sessionId, // Use provided session ID
+            UserId = userId,
+            ConnectionId = connectionId,
+            StartTime = DateTime.UtcNow,
+            LastActivity = DateTime.UtcNow,
+            State = SessionState.Active,
+            Context = new UserContext
+            {
+                UserId = userId,
+                Preferences = new UserPreferences(),
+                History = new List<ContextEntry>()
+            }
+        };
+
+        if (_sessions.Count >= _options.Value.MaxConcurrentSessions)
+        {
+            throw new InvalidOperationException("Maximum concurrent sessions reached");
+        }
+
+        _sessions[session.Id] = session;
+        _connectionToSession[connectionId] = session.Id;
+
+        _logger.LogInformation("Created session {SessionId} for user {UserId} with custom ID", session.Id, userId);
+        return Task.FromResult(session);
+    }
+
+    public Task UpdateSessionConnectionAsync(string sessionId, string connectionId)
+    {
+        if (_sessions.TryGetValue(sessionId, out var session))
+        {
+            // Remove old connection mapping if exists
+            if (!string.IsNullOrEmpty(session.ConnectionId))
+            {
+                _connectionToSession.TryRemove(session.ConnectionId, out _);
+            }
+            
+            // Update with new connection
+            session.ConnectionId = connectionId;
+            _connectionToSession[connectionId] = sessionId;
+            session.LastActivity = DateTime.UtcNow;
+            
+            _logger.LogInformation("Updated session {SessionId} with new connection {ConnectionId}", sessionId, connectionId);
+        }
+        
+        return Task.CompletedTask;
     }
 
     public Task<UserSession?> GetSessionAsync(string sessionId)

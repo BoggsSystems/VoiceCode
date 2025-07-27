@@ -25,14 +25,19 @@ public class SimpleTokenAuthHandler : AuthenticationHandler<SimpleTokenAuthOptio
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        var path = Request.Path.ToString();
+        _logger.LogDebug("SimpleTokenAuthHandler called for path: {Path}", path);
+        
         if (!Request.Headers.ContainsKey("Authorization"))
         {
+            _logger.LogWarning("Missing Authorization Header for path: {Path}", path);
             return Task.FromResult(AuthenticateResult.Fail("Missing Authorization Header"));
         }
 
         try
         {
             var authHeader = Request.Headers["Authorization"].ToString();
+            _logger.LogDebug("Authorization header found: {Header}", authHeader?.Substring(0, Math.Min(authHeader.Length, 20)) + "...");
             
             if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
@@ -52,7 +57,7 @@ public class SimpleTokenAuthHandler : AuthenticationHandler<SimpleTokenAuthOptio
                     var principal = new ClaimsPrincipal(identity);
                     var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
-                    _logger.LogInformation("Simple token authentication successful");
+                    _logger.LogInformation("Simple token authentication successful for path: {Path}", path);
                     return Task.FromResult(AuthenticateResult.Success(ticket));
                 }
             }

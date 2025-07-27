@@ -33,7 +33,8 @@ public class VoiceCommandController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Processing voice command: {Transcription}", request.Transcription);
+            _logger.LogInformation("Processing voice command: {Transcription} with SessionId: {SessionId}", 
+                request.Transcription, request.SessionId ?? "none");
 
             // Step 1: Classify intent using OpenAI
             var classification = await _intentClassifier.ClassifyAsync(request.Transcription, new Dictionary<string, object>

@@ -178,7 +178,11 @@ public class WorkerQueueProcessorService : BackgroundService
             result.Metadata["worker_id"] = Environment.GetEnvironmentVariable("WORKER_ID") ?? "unknown";
             result.Metadata["processed_at"] = DateTime.UtcNow;
             result.Metadata["original_command"] = workerPayload.Command;
+            result.Metadata["sessionId"] = workerPayload.Context?.SessionId ?? "";
+            result.Metadata["voiceCommand"] = workerPayload.Command;
 
+            _logger.LogInformation("Result metadata - SessionId: {SessionId}, WorkerId: {WorkerId}", 
+                result.Metadata["sessionId"], result.Metadata["worker_id"]);
             _logger.LogInformation("Sending result to response queue");
             // Send result to response queue
             await SendResultAsync(result);

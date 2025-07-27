@@ -1,6 +1,6 @@
 {
   "name": "voicecode-webapp",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "VoiceCode AI-powered voice assistant web application",
   "private": true,
   "dependencies": {
