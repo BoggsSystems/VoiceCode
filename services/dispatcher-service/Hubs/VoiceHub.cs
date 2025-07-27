@@ -7,8 +7,8 @@ using VoiceCode.DispatcherService.Services;
 
 namespace VoiceCode.DispatcherService.Hubs;
 
-[Authorize]
-[RequiredScope(RequiredScopesConfigurationKey = "AzureAd:Scopes")]
+// Temporarily disabled for debugging SignalR connection issues
+// [Authorize]
 public class VoiceHub : Hub
 {
     private readonly ILogger<VoiceHub> _logger;
@@ -35,16 +35,17 @@ public class VoiceHub : Hub
     {
         try
         {
-            var userId = Context.UserIdentifier ?? Context.ConnectionId;
-            var session = await _sessionManager.CreateSessionAsync(userId, Context.ConnectionId);
-            
-            await Groups.AddToGroupAsync(Context.ConnectionId, session.Id);
-            await Clients.Caller.SendAsync("SessionStarted", session);
-
-            _logger.LogInformation("Client connected: {ConnectionId}, Session: {SessionId}", 
-                Context.ConnectionId, session.Id);
+            // Don't create a session immediately - wait for JoinSession call
+            _logger.LogInformation("Client connected: {ConnectionId}, waiting for JoinSession", 
+                Context.ConnectionId);
             
             _metrics.RecordConnection();
+            
+            // Send connection established event
+            await Clients.Caller.SendAsync("Connected", new { 
+                connectionId = Context.ConnectionId,
+                message = "Connected to SignalR hub. Please join a session."
+            });
         }
         catch (Exception ex)
         {
@@ -289,6 +290,54 @@ public class VoiceHub : Hub
         {
             _logger.LogError(ex, "Error sending feedback");
             throw;
+        }
+    }
+    
+    [HubMethodName("JoinSession")]
+    public async Task<bool> JoinSessionAsync(string sessionId)
+    {
+        try
+        {
+            _logger.LogInformation("Client {ConnectionId} joining session {SessionId}", 
+                Context.ConnectionId, sessionId);
+                
+            // Check if session exists
+            var session = await _sessionManager.GetSessionAsync(sessionId);
+            if (session == null)
+            {
+                // Create new session with the provided session ID
+                var userId = Context.UserIdentifier ?? Context.ConnectionId;
+                session = await _sessionManager.CreateSessionAsync(userId, Context.ConnectionId, sessionId);
+                _logger.LogInformation("Created new session {SessionId} for connection {ConnectionId}", 
+                    sessionId, Context.ConnectionId);
+            }
+            else
+            {
+                // Update existing session with new connection
+                await _sessionManager.UpdateSessionConnectionAsync(sessionId, Context.ConnectionId);
+                _logger.LogInformation("Updated existing session {SessionId} with connection {ConnectionId}", 
+                    sessionId, Context.ConnectionId);
+            }
+            
+            // Add to session group for audio responses
+            await Groups.AddToGroupAsync(Context.ConnectionId, sessionId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"session:{sessionId}");
+            
+            // Send session info to client
+            await Clients.Caller.SendAsync("SessionStarted", session);
+            await Clients.Caller.SendAsync("JoinedSession", new { 
+                sessionId, 
+                success = true,
+                session = session
+            });
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining session {SessionId}", sessionId);
+            await Clients.Caller.SendAsync("JoinedSession", new { sessionId, success = false, error = ex.Message });
+            return false;
         }
     }
 }

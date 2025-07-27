@@ -151,7 +151,8 @@ export class AudioService {
 
   async processWithClaude(transcript: string): Promise<string> {
     const startTime = Date.now();
-    const sessionId = sessionStorage.getItem('voiceSessionId') || crypto.randomUUID();
+    // Use the same session ID as SignalR
+    const sessionId = localStorage.getItem('session-id') || crypto.randomUUID();
     
     console.log('[AudioService] 🧠 STEP 5: Processing with orchestration', {
       transcript,
@@ -167,7 +168,7 @@ export class AudioService {
     
     try {
       // Store session ID for future use
-      sessionStorage.setItem('voiceSessionId', sessionId);
+      localStorage.setItem('session-id', sessionId);
       
       // Send to Router for intent classification and orchestration
       const apiUrl = `${this.apiGatewayUrl}/api/voicecommand/process`;

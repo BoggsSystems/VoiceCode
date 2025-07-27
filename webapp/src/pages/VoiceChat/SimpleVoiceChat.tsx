@@ -5,7 +5,12 @@ import { useDirectVoiceRecording } from '../../hooks/useDirectVoiceRecording';
 import { createConversation } from '../../store/slices/chatSlice';
 import { remoteLogger, setupRemoteConsole } from '../../services/remoteLogger';
 import VoiceService from '../../services/voiceService';
+import SignalRDebugPanel from '../../components/SignalRDebugPanel/SignalRDebugPanel';
+import AudioPlayer from '../../components/AudioPlayer/AudioPlayer';
 import './SimpleVoiceChat.css';
+
+const BUILD_VERSION = '1.0.7';
+const BUILD_TIME = new Date().toISOString();
 
 const SimpleVoiceChat: React.FC = () => {
   const navigate = useNavigate();
@@ -253,9 +258,12 @@ const SimpleVoiceChat: React.FC = () => {
           padding: '5px',
           borderRadius: '5px'
         }}>
-          v1.0.1 | {connected ? '✓' : '○'} Connected | {permissionGranted ? '✓' : '○'} Mic
+          v{BUILD_VERSION} | Build: {BUILD_TIME} | {connected ? '✓' : '○'} Connected | {permissionGranted ? '✓' : '○'} Mic
         </div>
       </div>
+      
+      <SignalRDebugPanel />
+      <AudioPlayer />
     </div>
   );
 };

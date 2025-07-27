@@ -86,6 +86,9 @@ public class TTSQueueProcessor : BackgroundService
 
             _logger.LogInformation("Processing TTS request {Id} for session {SessionId} with text length {Length}", 
                 requestId, sessionId ?? "none", text.Length);
+            
+            // Log the full message for debugging
+            _logger.LogDebug("Full TTS request message: {Message}", body);
 
             using var scope = _serviceProvider.CreateScope();
             var ttsService = scope.ServiceProvider.GetRequiredService<ITTSService>();
@@ -101,7 +104,7 @@ public class TTSQueueProcessor : BackgroundService
                 Style = "friendly",
                 StyleDegree = 1.2,
                 ReturnAudioData = true,
-                StoreAudio = false
+                StoreAudio = true  // Enable storage to get URL
             };
 
             // Synthesize speech
@@ -112,14 +115,21 @@ public class TTSQueueProcessor : BackgroundService
                 _logger.LogInformation("Successfully synthesized speech for request {Id}, {Length} bytes", 
                     requestId, result.AudioData.Length);
                 
-                // In a production system, you would:
-                // 1. Store the audio in blob storage
-                // 2. Send a notification with the audio URL
-                // 3. Or stream it directly to the client
+                // Send audio URL to Dispatcher for SignalR broadcast
+                if (!string.IsNullOrEmpty(result.AudioUrl))
+                {
+                    // Use provided session ID or generate one for tracking
+                    var effectiveSessionId = !string.IsNullOrEmpty(sessionId) ? sessionId : $"auto-{requestId}";
+                    _logger.LogInformation("Sending audio response to dispatcher with session ID: {SessionId}", effectiveSessionId);
+                    await SendAudioResponseToDispatcher(effectiveSessionId, requestId, result.AudioUrl, text, result.Duration / 1000.0);
+                }
+                else
+                {
+                    _logger.LogWarning("No audio URL generated for request {Id}", requestId);
+                }
                 
-                // For now, we'll just log success
-                _logger.LogInformation("TTS audio ready for session {SessionId}, content type: {ContentType}, duration: {Duration}ms", 
-                    sessionId, result.ContentType, result.Duration);
+                _logger.LogInformation("TTS audio ready for session {SessionId}, URL: {AudioUrl}, duration: {Duration}ms", 
+                    sessionId, result.AudioUrl, result.Duration);
             }
             else
             {
@@ -140,6 +150,42 @@ public class TTSQueueProcessor : BackgroundService
     {
         _logger.LogError(args.Exception, "Error in Service Bus processor");
         return Task.CompletedTask;
+    }
+    
+    private async Task SendAudioResponseToDispatcher(string sessionId, string taskId, string audioUrl, string text, double durationSeconds)
+    {
+        try
+        {
+            var sender = _serviceBusClient!.CreateSender("audio-responses");
+            
+            var message = new AudioResponseRequest
+            {
+                SessionId = sessionId,
+                TaskId = taskId,
+                AudioBlobPath = audioUrl,
+                TranscriptionText = text,
+                DurationSeconds = durationSeconds
+            };
+            
+            var messageBody = JsonSerializer.Serialize(message);
+            var serviceBusMessage = new ServiceBusMessage(Encoding.UTF8.GetBytes(messageBody))
+            {
+                ContentType = "application/json",
+                Subject = "audio-response",
+                MessageId = Guid.NewGuid().ToString(),
+                SessionId = sessionId
+            };
+            
+            await sender.SendMessageAsync(serviceBusMessage);
+            await sender.DisposeAsync();
+            
+            _logger.LogInformation("Sent audio response to dispatcher for session {SessionId}, task {TaskId}", 
+                sessionId, taskId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send audio response to dispatcher");
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

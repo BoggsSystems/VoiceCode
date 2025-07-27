@@ -77,17 +77,18 @@ public class ResultProcessorService : BackgroundService
                 return;
             }
 
-            var workerId = result.Metadata?.ContainsKey("workerId") == true ? 
-                result.Metadata["workerId"]?.ToString() : "unknown";
-            _logger.LogInformation("Processing result for task {TaskId} from worker {WorkerId}", 
-                result.TaskId, workerId);
+            var workerId = result.Metadata?.ContainsKey("worker_id") == true ? 
+                result.Metadata["worker_id"]?.ToString() : "unknown";
+            _logger.LogInformation("Processing result for task {TaskId} from worker {WorkerId}, SessionId from metadata: {SessionId}", 
+                result.TaskId, workerId, 
+                result.Metadata?.ContainsKey("sessionId") == true ? result.Metadata["sessionId"]?.ToString() : "none");
 
             // Convert to our model
             var workerResult = new WorkerResult
             {
                 TaskId = result.TaskId,
-                WorkerId = result.Metadata?.ContainsKey("workerId") == true ? 
-                    result.Metadata["workerId"]?.ToString() ?? "unknown" : "unknown",
+                WorkerId = result.Metadata?.ContainsKey("worker_id") == true ? 
+                    result.Metadata["worker_id"]?.ToString() ?? "unknown" : "unknown",
                 Success = result.Success,
                 Output = result.Summary,
                 Error = result.Error ?? "",
@@ -139,19 +140,42 @@ public class ResultProcessorService : BackgroundService
             var synthesisService = scope.ServiceProvider.GetRequiredService<IOpenAISynthesisService>();
             var ttsQueueService = scope.ServiceProvider.GetRequiredService<ITTSQueueService>();
 
-            // Get original command from metadata (this would come from orchestrator in production)
+            // Get original command and session ID from metadata
             var firstResult = results.FirstOrDefault();
             var originalCommand = "unknown command";
-            if (firstResult?.Metadata?.ContainsKey("voiceCommand") == true)
+            var sessionId = "";
+            
+            if (firstResult?.Metadata != null)
             {
-                originalCommand = firstResult.Metadata["voiceCommand"]?.ToString() ?? "unknown command";
+                if (firstResult.Metadata.ContainsKey("voiceCommand"))
+                {
+                    originalCommand = firstResult.Metadata["voiceCommand"]?.ToString() ?? "unknown command";
+                }
+                if (firstResult.Metadata.ContainsKey("sessionId"))
+                {
+                    sessionId = firstResult.Metadata["sessionId"]?.ToString() ?? "";
+                }
+                
+                _logger.LogInformation("Extracted from metadata - SessionId: {SessionId}, OriginalCommand: {Command}", 
+                    sessionId, originalCommand);
+            }
+            else
+            {
+                _logger.LogWarning("No metadata found in first result for task {TaskId}", taskId);
             }
 
             var synthesisRequest = new SynthesisRequest
             {
                 TaskId = taskId,
                 OriginalVoiceCommand = originalCommand,
-                WorkerResults = results
+                WorkerResults = results,
+                Context = new ConversationContext
+                {
+                    SessionId = sessionId,
+                    OriginalCommand = originalCommand,
+                    WorkerResults = results,
+                    StartTime = DateTime.UtcNow
+                }
             };
 
             var voiceResponse = await synthesisService.SynthesizeResponseAsync(synthesisRequest);

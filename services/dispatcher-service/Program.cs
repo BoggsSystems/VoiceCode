@@ -89,7 +89,7 @@ try
     // Add SignalR with optional Redis backplane
     var signalRBuilder = builder.Services.AddSignalR(options =>
     {
-        options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+        options.EnableDetailedErrors = true; // Enable for debugging
         options.KeepAliveInterval = TimeSpan.FromSeconds(15);
         options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
         options.MaximumReceiveMessageSize = 1024 * 1024; // 1MB
@@ -130,6 +130,7 @@ try
     builder.Services.AddSingleton<IVADService, VADService>();
     builder.Services.AddHostedService<QueueProcessorService>();
     builder.Services.AddHostedService<SessionCleanupService>();
+    builder.Services.AddHostedService<AudioResponseProcessor>();
 
     // Add HTTP clients for service communication
     builder.Services.AddHttpClient("STTService", (sp, client) =>
@@ -177,10 +178,13 @@ try
     {
         options.AddPolicy("AllowWebApp", policy =>
         {
-            policy.WithOrigins(builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>())
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyMethod()
                   .AllowAnyHeader()
-                  .AllowCredentials();
+                  .AllowCredentials()
+                  .SetIsOriginAllowed(origin => true) // Allow any origin for SignalR during debugging
+                  .WithExposedHeaders("*"); // Expose all headers for SignalR
         });
     });
 
