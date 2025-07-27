@@ -115,7 +115,17 @@ try
     builder.Services.AddSingleton(sp =>
     {
         var configuration = sp.GetRequiredService<IConfiguration>();
-        return new ServiceBusClient(configuration.GetConnectionString("ServiceBus"));
+        var connectionString = configuration.GetConnectionString("ServiceBus") ?? 
+            Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
+        
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            Log.Error("Service Bus connection string not found. Check ConnectionStrings:ServiceBus or AZURE_SERVICE_BUS_CONNECTION_STRING");
+            throw new InvalidOperationException("Service Bus connection string is required");
+        }
+        
+        Log.Information("Creating ServiceBusClient with connection string");
+        return new ServiceBusClient(connectionString);
     });
 
     // Configure options

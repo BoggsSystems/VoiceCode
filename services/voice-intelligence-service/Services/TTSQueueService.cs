@@ -42,13 +42,27 @@ public class TTSQueueService : ITTSQueueService
 
     public async Task SendToTTSAsync(VoiceResponse voiceResponse)
     {
+        var sendStartTime = DateTime.UtcNow;
+        var requestId = Guid.NewGuid().ToString();
+        
+        _logger.LogInformation("Preparing TTS Request - RequestId: {RequestId}, TaskId: {TaskId}, SessionId: {SessionId}, TextLength: {TextLength}",
+            requestId, voiceResponse.TaskId, voiceResponse.SessionId, voiceResponse.SpokenResponse?.Length ?? 0);
+        
         try
         {
             EnsureInitialized();
+            
+            // Log the spoken response content for debugging
+            var textPreview = voiceResponse.SpokenResponse?.Length > 100 
+                ? voiceResponse.SpokenResponse.Substring(0, 100) + "..." 
+                : voiceResponse.SpokenResponse;
+            _logger.LogDebug("TTS Text Preview - RequestId: {RequestId}, Text: {Text}",
+                requestId, textPreview);
+            
             // Format for TTS service
             var ttsRequest = new
             {
-                id = Guid.NewGuid().ToString(),
+                id = requestId,
                 text = voiceResponse.SpokenResponse,
                 sessionId = voiceResponse.SessionId,
                 metadata = new
@@ -61,21 +75,38 @@ public class TTSQueueService : ITTSQueueService
             };
 
             var messageBody = JsonConvert.SerializeObject(ttsRequest);
+            _logger.LogDebug("TTS Request JSON - RequestId: {RequestId}, Body: {Body}",
+                requestId, messageBody);
+            
+            var messageId = Guid.NewGuid().ToString();
             var message = new ServiceBusMessage(Encoding.UTF8.GetBytes(messageBody))
             {
+                MessageId = messageId,
                 ContentType = "application/json",
                 Subject = "voice-synthesis",
                 SessionId = voiceResponse.SessionId
             };
+            
+            // Add metadata to message properties
+            message.ApplicationProperties["TaskId"] = voiceResponse.TaskId;
+            message.ApplicationProperties["RequestId"] = requestId;
+            message.ApplicationProperties["WorkerCount"] = voiceResponse.WorkersInvolved?.Count ?? 0;
+            
+            _logger.LogInformation("Sending TTS Request to Queue - RequestId: {RequestId}, MessageId: {MessageId}, Queue: tts-requests",
+                requestId, messageId);
 
             await _ttsSender!.SendMessageAsync(message);
             
-            _logger.LogInformation("Sent voice response to TTS queue for task {TaskId}: {Response}", 
-                voiceResponse.TaskId, voiceResponse.SpokenResponse);
+            var sendDuration = (DateTime.UtcNow - sendStartTime).TotalMilliseconds;
+            _logger.LogInformation("TTS Request Queued Successfully - RequestId: {RequestId}, TaskId: {TaskId}, SessionId: {SessionId}, Workers: {Workers}, SendTime: {Time}ms", 
+                requestId, voiceResponse.TaskId, voiceResponse.SessionId, 
+                string.Join(", ", voiceResponse.WorkersInvolved ?? new List<string>()), sendDuration);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send voice response to TTS queue");
+            var failDuration = (DateTime.UtcNow - sendStartTime).TotalMilliseconds;
+            _logger.LogError(ex, "Failed to send TTS request - RequestId: {RequestId}, TaskId: {TaskId}, SessionId: {SessionId}, FailTime: {Time}ms",
+                requestId, voiceResponse.TaskId, voiceResponse.SessionId, failDuration);
             throw;
         }
     }

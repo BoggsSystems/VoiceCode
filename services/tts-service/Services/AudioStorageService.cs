@@ -1,5 +1,6 @@
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Azure.Storage.Sas;
 using VoiceCode.TTSService.Services.Interfaces;
 using VoiceCode.Common.Interfaces;
 
@@ -26,7 +27,7 @@ public class AudioStorageService : Interfaces.IAudioStorageService, VoiceCode.Co
             var containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
             await containerClient.CreateIfNotExistsAsync(PublicAccessType.None);
 
-            var fileName = $"{sessionId}/{Guid.NewGuid()}{fileExtension}";
+            var fileName = $"{sessionId}/{Guid.NewGuid()}.{fileExtension}";
             var blobClient = containerClient.GetBlobClient(fileName);
 
             using var stream = new MemoryStream(audioData);
@@ -36,7 +37,12 @@ public class AudioStorageService : Interfaces.IAudioStorageService, VoiceCode.Co
             });
 
             _logger.LogInformation("Stored audio file {FileName} ({Size} bytes)", fileName, audioData.Length);
-            return blobClient.Uri.ToString();
+            
+            // Generate SAS URL with 24-hour expiry
+            var sasUrl = GenerateSasUrl(blobClient);
+            _logger.LogInformation("Generated SAS URL for audio file {FileName}", fileName);
+            
+            return sasUrl;
         }
         catch (Exception ex)
         {
@@ -102,7 +108,8 @@ public class AudioStorageService : Interfaces.IAudioStorageService, VoiceCode.Co
             await foreach (var blobItem in containerClient.GetBlobsAsync(prefix: prefix))
             {
                 var blobClient = containerClient.GetBlobClient(blobItem.Name);
-                audioFiles.Add(blobClient.Uri.ToString());
+                var sasUrl = GenerateSasUrl(blobClient);
+                audioFiles.Add(sasUrl);
             }
 
             return audioFiles;
@@ -153,7 +160,8 @@ public class AudioStorageService : Interfaces.IAudioStorageService, VoiceCode.Co
                     continue;
                     
                 var blobClient = containerClient.GetBlobClient(blobItem.Name);
-                audioFiles.Add(blobClient.Uri.ToString());
+                var sasUrl = GenerateSasUrl(blobClient);
+                audioFiles.Add(sasUrl);
             }
 
             return audioFiles;
@@ -176,5 +184,31 @@ public class AudioStorageService : Interfaces.IAudioStorageService, VoiceCode.Co
             ".pcm" => "audio/pcm",
             _ => "application/octet-stream"
         };
+    }
+
+    private string GenerateSasUrl(BlobClient blobClient)
+    {
+        // Check if BlobClient can generate SAS
+        if (!blobClient.CanGenerateSasUri)
+        {
+            _logger.LogWarning("BlobClient cannot generate SAS URI. Returning direct URL instead.");
+            return blobClient.Uri.ToString();
+        }
+
+        // Create a SAS token that's valid for 24 hours
+        var sasBuilder = new BlobSasBuilder
+        {
+            BlobContainerName = blobClient.BlobContainerName,
+            BlobName = blobClient.Name,
+            Resource = "b", // b for blob
+            StartsOn = DateTimeOffset.UtcNow.AddMinutes(-5), // Account for clock skew
+            ExpiresOn = DateTimeOffset.UtcNow.AddHours(24),
+        };
+
+        // Specify read permissions for the SAS
+        sasBuilder.SetPermissions(BlobSasPermissions.Read);
+
+        // Generate the SAS URI
+        return blobClient.GenerateSasUri(sasBuilder).ToString();
     }
 }

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Test</title>
+</head>
+<body>
+    <h1>Audio URL Tester</h1>
+    <p>Paste an audio URL to test playback:</p>
+    
+    <input type="text" id="audioUrl" style="width: 80%; padding: 10px;" placeholder="https://example.blob.core.windows.net/..." />
+    <br><br>
+    
+    <button onclick="testDirect()">Test Direct Playback</button>
+    <button onclick="testFetch()">Test Fetch + Blob</button>
+    <button onclick="testFetchWithType()">Test Fetch + Force MP3</button>
+    <button onclick="checkHeaders()">Check Headers</button>
+    
+    <h2>Results:</h2>
+    <pre id="results"></pre>
+    
+    <audio id="audioPlayer" controls style="width: 100%; margin-top: 20px;"></audio>
+    
+    <script>
+        const results = document.getElementById('results');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const log = (msg) => {
+            results.textContent += msg + '\n';
+            console.log(msg);
+        };
+        
+        function testDirect() {
+            results.textContent = '';
+            const url = document.getElementById('audioUrl').value;
+            log('Testing direct playback...');
+            
+            audioPlayer.src = url;
+            audioPlayer.play()
+                .then(() => log('✅ Direct playback successful!'))
+                .catch(err => {
+                    log('❌ Direct playback failed: ' + err.message);
+                    if (audioPlayer.error) {
+                        log('Media error code: ' + audioPlayer.error.code);
+                        log('Media error: ' + audioPlayer.error.message);
+                    }
+                });
+        }
+        
+        async function testFetch() {
+            results.textContent = '';
+            const url = document.getElementById('audioUrl').value;
+            log('Testing fetch + blob...');
+            
+            try {
+                const response = await fetch(url);
+                log('Response status: ' + response.status);
+                log('Content-Type: ' + response.headers.get('content-type'));
+                
+                const blob = await response.blob();
+                log('Blob size: ' + blob.size + ' bytes');
+                log('Blob type: ' + blob.type);
+                
+                const blobUrl = URL.createObjectURL(blob);
+                audioPlayer.src = blobUrl;
+                
+                await audioPlayer.play();
+                log('✅ Fetch + blob playback successful!');
+            } catch (err) {
+                log('❌ Fetch + blob failed: ' + err.message);
+            }
+        }
+        
+        async function testFetchWithType() {
+            results.textContent = '';
+            const url = document.getElementById('audioUrl').value;
+            log('Testing fetch + force MP3 type...');
+            
+            try {
+                const response = await fetch(url);
+                log('Response status: ' + response.status);
+                
+                const arrayBuffer = await response.arrayBuffer();
+                log('Data size: ' + arrayBuffer.byteLength + ' bytes');
+                
+                // Force audio/mpeg type
+                const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+                log('Created blob with type: ' + blob.type);
+                
+                const blobUrl = URL.createObjectURL(blob);
+                audioPlayer.src = blobUrl;
+                
+                await audioPlayer.play();
+                log('✅ Fetch + force MP3 playback successful!');
+            } catch (err) {
+                log('❌ Fetch + force MP3 failed: ' + err.message);
+            }
+        }
+        
+        async function checkHeaders() {
+            results.textContent = '';
+            const url = document.getElementById('audioUrl').value;
+            log('Checking headers...');
+            
+            try {
+                const response = await fetch(url, { method: 'HEAD' });
+                log('Status: ' + response.status);
+                
+                const headers = {};
+                response.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+                
+                log('Headers: ' + JSON.stringify(headers, null, 2));
+            } catch (err) {
+                log('❌ Header check failed: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

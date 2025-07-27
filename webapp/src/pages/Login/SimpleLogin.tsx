@@ -89,7 +89,7 @@ const SimpleLogin: React.FC = () => {
 
         <div className="login-info">
           <p>🔒 This is a development login page with pre-filled test credentials</p>
-          <p style={{fontSize: '11px', color: '#888', marginTop: '10px'}}>Version 1.0.9 | If you don't see updates, try Ctrl+F5 to clear cache</p>
+          <p style={{fontSize: '11px', color: '#888', marginTop: '10px'}}>Version 1.0.13 | If you don't see updates, try Ctrl+F5 to clear cache</p>
         </div>
       </div>
     </div>

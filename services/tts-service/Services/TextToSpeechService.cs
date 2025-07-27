@@ -99,6 +99,12 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
 
     public async Task<SynthesisResult> SynthesizeAsync(SynthesisRequest request)
     {
+        var startTime = DateTime.UtcNow;
+        var requestId = request.RequestId ?? Guid.NewGuid().ToString();
+        
+        _logger.LogInformation("TTS Synthesis Starting - RequestId: {RequestId}, SessionId: {SessionId}, TextLength: {TextLength}, Voice: {Voice}",
+            requestId, request.SessionId ?? "none", request.Text?.Length ?? 0, request.VoiceName ?? "default");
+        
         try
         {
             // Check cache if enabled
@@ -108,8 +114,14 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
                 var cachedResult = await _cache.GetAsync<SynthesisResult>(cacheKey);
                 if (cachedResult != null)
                 {
-                    _logger.LogInformation("Returning cached audio for text hash {CacheKey}", cacheKey);
+                    _logger.LogInformation("TTS Cache Hit - RequestId: {RequestId}, CacheKey: {CacheKey}, AudioSize: {Size} bytes",
+                        requestId, cacheKey, cachedResult.AudioData?.Length ?? 0);
                     return cachedResult;
+                }
+                else
+                {
+                    _logger.LogDebug("TTS Cache Miss - RequestId: {RequestId}, CacheKey: {CacheKey}",
+                        requestId, cacheKey);
                 }
             }
 
@@ -117,10 +129,14 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
             Models.VoiceProfile profile;
             if (request.Personality.HasValue)
             {
+                _logger.LogDebug("Loading personality voice profile - RequestId: {RequestId}, Personality: {Personality}",
+                    requestId, request.Personality.Value);
                 profile = await _personalityService.GetPersonalityVoiceAsync(request.Personality.Value);
             }
             else if (!string.IsNullOrEmpty(request.VoiceName))
             {
+                _logger.LogDebug("Loading voice profile by name - RequestId: {RequestId}, VoiceName: {VoiceName}",
+                    requestId, request.VoiceName);
                 // Try to find profile by voice name
                 var profiles = await _personalityService.GetAllProfilesAsync();
                 profile = profiles.Values.FirstOrDefault(p => p.NeuralVoiceName == request.VoiceName)
@@ -128,48 +144,80 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
             }
             else
             {
+                _logger.LogDebug("Using default voice profile - RequestId: {RequestId}", requestId);
                 profile = await _personalityService.GetVoiceProfileAsync("default");
             }
             
+            _logger.LogInformation("Voice Profile Selected - RequestId: {RequestId}, Voice: {Voice}, Language: {Language}, Personality: {Personality}",
+                requestId, profile.NeuralVoiceName, profile.Language, profile.Personality);
+            
             var ssml = await BuildSSMLAsync(request.Text, profile, request.Style);
+            _logger.LogDebug("SSML Generated - RequestId: {RequestId}, SSMLLength: {Length}",
+                requestId, ssml?.Length ?? 0);
 
             // Synthesize speech
+            _logger.LogInformation("Starting speech synthesis - RequestId: {RequestId}", requestId);
+            var synthStartTime = DateTime.UtcNow;
             var audioData = await SynthesizeSpeechAsync(ssml, profile);
+            var synthDuration = (DateTime.UtcNow - synthStartTime).TotalMilliseconds;
+            
+            _logger.LogInformation("Speech synthesis completed - RequestId: {RequestId}, AudioSize: {Size} bytes, SynthTime: {Time}ms",
+                requestId, audioData?.Length ?? 0, synthDuration);
 
             // Store audio to storage service
+            _logger.LogDebug("Storing audio to storage - RequestId: {RequestId}", requestId);
+            var storeStartTime = DateTime.UtcNow;
             var audioUrl = await _audioStorage.StoreAudioAsync(
                 audioData,
-                request.RequestId ?? Guid.NewGuid().ToString(),
+                requestId,
                 "mp3");
+            var storeDuration = (DateTime.UtcNow - storeStartTime).TotalMilliseconds;
+            
+            _logger.LogInformation("Audio stored - RequestId: {RequestId}, URL: {URL}, StoreTime: {Time}ms",
+                requestId, audioUrl, storeDuration);
 
+            var audioDuration = CalculateDuration(audioData);
             var result = new SynthesisResult
             {
-                RequestId = request.RequestId ?? Guid.NewGuid().ToString(),
+                RequestId = requestId,
                 AudioData = audioData,
                 AudioUrl = audioUrl,
                 ContentType = "audio/mpeg",
-                Duration = (int)CalculateDuration(audioData).TotalMilliseconds,
+                Duration = (int)audioDuration.TotalMilliseconds,
                 ProcessedAt = DateTime.UtcNow,
                 Metadata = new Dictionary<string, object>
                 {
                     { "voiceName", profile.NeuralVoiceName },
                     { "language", profile.Language },
-                    { "personality", profile.Personality.ToString() }
+                    { "personality", profile.Personality.ToString() },
+                    { "synthesisTimeMs", synthDuration },
+                    { "storageTimeMs", storeDuration }
                 }
             };
+            
+            _logger.LogInformation("TTS Result Created - RequestId: {RequestId}, AudioDuration: {Duration}ms",
+                requestId, result.Duration);
 
             // Cache result if enabled
             if (_voiceOptions.Value.CacheAudio)
             {
                 var cacheKey = GenerateCacheKey(request);
+                _logger.LogDebug("Caching TTS result - RequestId: {RequestId}, CacheKey: {CacheKey}, Duration: {Duration}",
+                    requestId, cacheKey, _voiceOptions.Value.CacheDuration);
                 await _cache.SetAsync(cacheKey, result, _voiceOptions.Value.CacheDuration);
             }
 
+            var totalDuration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogInformation("TTS Synthesis Complete - RequestId: {RequestId}, SessionId: {SessionId}, TotalTime: {Time}ms, AudioSize: {Size} bytes, AudioUrl: {Url}",
+                requestId, request.SessionId ?? "none", totalDuration, audioData?.Length ?? 0, audioUrl);
+                
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error synthesizing speech");
+            var failureDuration = (DateTime.UtcNow - startTime).TotalMilliseconds;
+            _logger.LogError(ex, "TTS Synthesis Failed - RequestId: {RequestId}, SessionId: {SessionId}, FailureTime: {Time}ms",
+                requestId, request.SessionId ?? "none", failureDuration);
             throw new TTSException("Failed to synthesize speech", ex);
         }
     }
@@ -271,7 +319,9 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
 
     private async Task<byte[]> SynthesizeSpeechAsync(string ssml, Models.VoiceProfile profile)
     {
+        _logger.LogDebug("Acquiring synthesis semaphore - Voice: {Voice}", profile.NeuralVoiceName);
         await _semaphore.WaitAsync();
+        
         try
         {
             return await _retryPolicy.ExecuteAsync(async () =>
@@ -281,6 +331,7 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
                 {
                     try
                     {
+                        _logger.LogDebug("Attempting synthesis with Speech SDK - Voice: {Voice}", profile.NeuralVoiceName);
                         using var synthesizer = new SpeechSynthesizer(_speechConfig);
                         
                         var result = await synthesizer.SpeakSsmlAsync(ssml)
@@ -288,20 +339,24 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
 
                         if (result.Reason == ResultReason.SynthesizingAudioCompleted)
                         {
+                            _logger.LogDebug("Speech SDK synthesis successful - AudioSize: {Size} bytes", result.AudioData.Length);
                             return result.AudioData;
                         }
                         else if (result.Reason == ResultReason.Canceled)
                         {
                             var cancellation = SpeechSynthesisCancellationDetails.FromResult(result);
+                            _logger.LogError("Speech SDK synthesis canceled - Reason: {Reason}, ErrorCode: {ErrorCode}, Details: {Details}",
+                                cancellation.Reason, cancellation.ErrorCode, cancellation.ErrorDetails);
                             throw new TTSException(
                                 $"Speech synthesis canceled: {cancellation.Reason} - {cancellation.ErrorDetails}");
                         }
 
+                        _logger.LogError("Speech SDK synthesis failed - Reason: {Reason}", result.Reason);
                         throw new TTSException("Speech synthesis failed");
                     }
                     catch (Exception ex) when (ex.Message.Contains("Failed to initialize platform"))
                     {
-                        _logger.LogWarning("Speech SDK failed, falling back to REST API");
+                        _logger.LogWarning(ex, "Speech SDK platform initialization failed, falling back to REST API");
                         // Fall through to REST API
                     }
                 }
@@ -309,16 +364,21 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
                 // Use REST API as fallback
                 if (_restService != null)
                 {
-                    _logger.LogInformation("Using REST API for speech synthesis");
-                    return await _restService.SynthesizeSpeechAsync(ssml, profile);
+                    _logger.LogInformation("Using REST API for speech synthesis - Voice: {Voice}", profile.NeuralVoiceName);
+                    var audioData = await _restService.SynthesizeSpeechAsync(ssml, profile);
+                    _logger.LogDebug("REST API synthesis successful - AudioSize: {Size} bytes", audioData.Length);
+                    return audioData;
                 }
 
+                _logger.LogError("No TTS service available - SDK: {SdkAvailable}, REST: {RestAvailable}",
+                    _speechConfig != null, _restService != null);
                 throw new TTSException("No TTS service available");
             });
         }
         finally
         {
             _semaphore.Release();
+            _logger.LogDebug("Released synthesis semaphore - Voice: {Voice}", profile.NeuralVoiceName);
         }
     }
 
@@ -398,22 +458,30 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
     // Implement Common.Interfaces.ITTSService
     public async Task<AudioResult> GenerateSpeechAsync(TTSRequest request)
     {
+        var requestId = request.SessionId ?? Guid.NewGuid().ToString();
+        _logger.LogInformation("GenerateSpeechAsync called - RequestId: {RequestId}, TextLength: {Length}, Voice: {Voice}",
+            requestId, request.Text?.Length ?? 0, request.Voice);
+        
         try
         {
             var synthesisRequest = new SynthesisRequest
             {
                 Text = request.Text,
                 VoiceName = request.Voice,
-                RequestId = request.SessionId,
+                RequestId = requestId,
+                SessionId = request.SessionId,
                 Speed = request.SpeechStyle != null ? double.Parse(request.SpeechStyle.Rate) : 1.0,
                 Pitch = request.SpeechStyle != null ? (request.SpeechStyle.Pitch.Contains("%") 
                     ? 1.0 + (double.Parse(request.SpeechStyle.Pitch.Replace("%", "").Replace("+", "")) / 100.0)
                     : 1.0) : 1.0
             };
+            
+            _logger.LogDebug("Synthesis parameters - RequestId: {RequestId}, Speed: {Speed}, Pitch: {Pitch}",
+                requestId, synthesisRequest.Speed, synthesisRequest.Pitch);
 
             var result = await SynthesizeAsync(synthesisRequest);
 
-            return new AudioResult
+            var audioResult = new AudioResult
             {
                 Success = true,
                 AudioUrl = result.AudioUrl,
@@ -421,10 +489,16 @@ public class TextToSpeechService : Interfaces.ITTSService, VoiceCode.Common.Inte
                 DurationMs = result.Duration,
                 FromCache = false // Could check if it was from cache
             };
+            
+            _logger.LogInformation("GenerateSpeechAsync successful - RequestId: {RequestId}, AudioUrl: {Url}, Duration: {Duration}ms",
+                requestId, audioResult.AudioUrl, audioResult.DurationMs);
+            
+            return audioResult;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error generating speech");
+            _logger.LogError(ex, "GenerateSpeechAsync failed - RequestId: {RequestId}, Voice: {Voice}",
+                requestId, request.Voice);
             return new AudioResult
             {
                 Success = false,

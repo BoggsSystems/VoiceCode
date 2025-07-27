@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advanced Audio Diagnostics</title>
+</head>
+<body>
+    <h1>Advanced Audio Diagnostics</h1>
+    <p>Paste an audio URL to analyze:</p>
+    
+    <input type="text" id="audioUrl" style="width: 80%; padding: 10px;" placeholder="https://example.blob.core.windows.net/..." />
+    <br><br>
+    
+    <button onclick="analyzeAudio()">Analyze Audio File</button>
+    <button onclick="downloadFile()">Download File</button>
+    <button onclick="testBase64()">Test as Base64</button>
+    
+    <h2>Analysis Results:</h2>
+    <pre id="results"></pre>
+    
+    <audio id="audioPlayer" controls style="width: 100%; margin-top: 20px;"></audio>
+    
+    <script>
+        const results = document.getElementById('results');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const log = (msg) => {
+            results.textContent += msg + '\n';
+            console.log(msg);
+        };
+        
+        async function analyzeAudio() {
+            results.textContent = '';
+            const url = document.getElementById('audioUrl').value;
+            log('Analyzing audio file...\n');
+            
+            try {
+                const response = await fetch(url);
+                log('HTTP Status: ' + response.status);
+                log('Content-Type: ' + response.headers.get('content-type'));
+                log('Content-Length: ' + response.headers.get('content-length'));
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const bytes = new Uint8Array(arrayBuffer);
+                
+                log('\nFile Analysis:');
+                log('Total size: ' + bytes.length + ' bytes');
+                
+                // Check file signature (magic bytes)
+                const signature = Array.from(bytes.slice(0, 16))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join(' ');
+                log('File signature (hex): ' + signature);
+                
+                // Check for common audio formats
+                if (bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0) {
+                    log('✅ Detected: MP3 file (MPEG Audio Layer III)');
+                } else if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+                    log('✅ Detected: MP3 with ID3v2 tag');
+                } else if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+                    log('✅ Detected: WAV file (RIFF format)');
+                } else if (bytes[0] === 0x4F && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) {
+                    log('✅ Detected: OGG file');
+                } else {
+                    log('❌ Unknown file format');
+                    
+                    // Check if it's text/JSON
+                    try {
+                        const text = new TextDecoder().decode(bytes);
+                        if (text.startsWith('{') || text.startsWith('[')) {
+                            log('⚠️ This appears to be JSON data, not audio!');
+                            log('Content preview: ' + text.substring(0, 200) + '...');
+                        } else if (text.includes('<') && text.includes('>')) {
+                            log('⚠️ This appears to be HTML/XML data, not audio!');
+                            log('Content preview: ' + text.substring(0, 200) + '...');
+                        } else {
+                            log('First 100 bytes as text: ' + text.substring(0, 100));
+                        }
+                    } catch (e) {
+                        log('Cannot decode as text - likely binary data');
+                    }
+                }
+                
+                // Try different blob types
+                log('\nTrying different playback methods:');
+                
+                // Method 1: Original blob
+                try {
+                    const blob1 = new Blob([arrayBuffer], { type: response.headers.get('content-type') || 'audio/mpeg' });
+                    const url1 = URL.createObjectURL(blob1);
+                    audioPlayer.src = url1;
+                    await audioPlayer.play();
+                    log('✅ Method 1 (original type): Success');
+                } catch (e) {
+                    log('❌ Method 1 (original type): ' + e.message);
+                }
+                
+                // Method 2: Force MP3
+                try {
+                    const blob2 = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+                    const url2 = URL.createObjectURL(blob2);
+                    audioPlayer.src = url2;
+                    await audioPlayer.play();
+                    log('✅ Method 2 (force audio/mpeg): Success');
+                } catch (e) {
+                    log('❌ Method 2 (force audio/mpeg): ' + e.message);
+                }
+                
+                // Method 3: Force WAV
+                try {
+                    const blob3 = new Blob([arrayBuffer], { type: 'audio/wav' });
+                    const url3 = URL.createObjectURL(blob3);
+                    audioPlayer.src = url3;
+                    await audioPlayer.play();
+                    log('✅ Method 3 (force audio/wav): Success');
+                } catch (e) {
+                    log('❌ Method 3 (force audio/wav): ' + e.message);
+                }
+                
+            } catch (err) {
+                log('❌ Error: ' + err.message);
+            }
+        }
+        
+        async function downloadFile() {
+            const url = document.getElementById('audioUrl').value;
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const downloadUrl = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'audio-file-' + Date.now();
+                a.click();
+                
+                log('File downloaded - check your downloads folder');
+            } catch (err) {
+                log('Download error: ' + err.message);
+            }
+        }
+        
+        async function testBase64() {
+            results.textContent = '';
+            const url = document.getElementById('audioUrl').value;
+            
+            try {
+                const response = await fetch(url);
+                const arrayBuffer = await response.arrayBuffer();
+                const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+                
+                // Try as data URL
+                const dataUrl = 'data:audio/mpeg;base64,' + base64;
+                log('Created data URL, length: ' + dataUrl.length);
+                
+                audioPlayer.src = dataUrl;
+                await audioPlayer.play();
+                log('✅ Base64 playback successful');
+            } catch (err) {
+                log('❌ Base64 test failed: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
