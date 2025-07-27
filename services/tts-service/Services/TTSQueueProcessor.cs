@@ -64,10 +64,23 @@ public class TTSQueueProcessor : BackgroundService
 
     private async Task ProcessTTSRequestAsync(ProcessMessageEventArgs args)
     {
+        var receivedAt = DateTime.UtcNow;
+        var messageId = args.Message.MessageId;
+        
         try
         {
             var body = Encoding.UTF8.GetString(args.Message.Body);
-            _logger.LogInformation("Processing TTS request from queue");
+            
+            _logger.LogInformation("TTS Queue Message Received - MessageId: {MessageId}, SessionId: {SessionId}, SequenceNumber: {SequenceNumber}, EnqueuedTime: {EnqueuedTime}",
+                messageId, args.Message.SessionId, args.Message.SequenceNumber, args.Message.EnqueuedTime);
+            
+            // Log message properties
+            if (args.Message.ApplicationProperties.Count > 0)
+            {
+                var properties = string.Join(", ", args.Message.ApplicationProperties.Select(p => $"{p.Key}={p.Value}"));
+                _logger.LogDebug("Message Properties - MessageId: {MessageId}, Properties: {Properties}",
+                    messageId, properties);
+            }
 
             // Parse the JSON message
             using var doc = JsonDocument.Parse(body);
@@ -79,16 +92,28 @@ public class TTSQueueProcessor : BackgroundService
             
             if (string.IsNullOrWhiteSpace(text))
             {
-                _logger.LogWarning("Received TTS request with empty text");
+                _logger.LogWarning("TTS Request Empty Text - RequestId: {RequestId}, MessageId: {MessageId}, SessionId: {SessionId}",
+                    requestId, messageId, sessionId ?? "none");
                 await args.CompleteMessageAsync(args.Message);
                 return;
             }
 
-            _logger.LogInformation("Processing TTS request {Id} for session {SessionId} with text length {Length}", 
-                requestId, sessionId ?? "none", text.Length);
+            // Extract metadata if present
+            var metadata = root.TryGetProperty("metadata", out var metaProp) ? metaProp : default;
+            var taskId = metadata.ValueKind != JsonValueKind.Undefined && metadata.TryGetProperty("taskId", out var taskProp) 
+                ? taskProp.GetString() : null;
+            var originalCommand = metadata.ValueKind != JsonValueKind.Undefined && metadata.TryGetProperty("originalCommand", out var cmdProp) 
+                ? cmdProp.GetString() : null;
+
+            _logger.LogInformation("TTS Request Details - RequestId: {RequestId}, TaskId: {TaskId}, SessionId: {SessionId}, TextLength: {TextLength}, Command: {Command}", 
+                requestId, taskId ?? "none", sessionId ?? "none", text.Length, originalCommand ?? "none");
             
-            // Log the full message for debugging
-            _logger.LogDebug("Full TTS request message: {Message}", body);
+            // Log first 100 chars of text for debugging
+            var textPreview = text.Length > 100 ? text.Substring(0, 100) + "..." : text;
+            _logger.LogDebug("TTS Text Preview - RequestId: {RequestId}, Text: {Text}", requestId, textPreview);
+            
+            // Log the full message for deep debugging
+            _logger.LogTrace("Full TTS request message - RequestId: {RequestId}, Body: {Message}", requestId, body);
 
             using var scope = _serviceProvider.CreateScope();
             var ttsService = scope.ServiceProvider.GetRequiredService<ITTSService>();
@@ -107,41 +132,63 @@ public class TTSQueueProcessor : BackgroundService
                 StoreAudio = true  // Enable storage to get URL
             };
 
+            // Log synthesis start
+            var synthesisStartTime = DateTime.UtcNow;
+            _logger.LogInformation("Starting TTS Synthesis - RequestId: {RequestId}, Voice: {Voice}, Style: {Style}",
+                requestId, synthesisRequest.VoiceName, synthesisRequest.Style);
+            
             // Synthesize speech
             var result = await ttsService.SynthesizeAsync(synthesisRequest);
             
+            var synthesisEndTime = DateTime.UtcNow;
+            var synthesisDuration = (synthesisEndTime - synthesisStartTime).TotalMilliseconds;
+            
             if (result.AudioData != null && result.AudioData.Length > 0)
             {
-                _logger.LogInformation("Successfully synthesized speech for request {Id}, {Length} bytes", 
-                    requestId, result.AudioData.Length);
+                _logger.LogInformation("TTS Synthesis Completed - RequestId: {RequestId}, AudioBytes: {Bytes}, Duration: {Duration}ms, SynthesisTime: {SynthesisTime}ms", 
+                    requestId, result.AudioData.Length, result.Duration, synthesisDuration);
                 
                 // Send audio URL to Dispatcher for SignalR broadcast
                 if (!string.IsNullOrEmpty(result.AudioUrl))
                 {
                     // Use provided session ID or generate one for tracking
                     var effectiveSessionId = !string.IsNullOrEmpty(sessionId) ? sessionId : $"auto-{requestId}";
-                    _logger.LogInformation("Sending audio response to dispatcher with session ID: {SessionId}", effectiveSessionId);
+                    
+                    _logger.LogInformation("Preparing Audio Response - RequestId: {RequestId}, SessionId: {SessionId}, AudioUrl: {AudioUrl}",
+                        requestId, effectiveSessionId, result.AudioUrl);
+                    
                     await SendAudioResponseToDispatcher(effectiveSessionId, requestId, result.AudioUrl, text, result.Duration / 1000.0);
+                    
+                    _logger.LogInformation("Audio Response Sent - RequestId: {RequestId}, SessionId: {SessionId}",
+                        requestId, effectiveSessionId);
                 }
                 else
                 {
-                    _logger.LogWarning("No audio URL generated for request {Id}", requestId);
+                    _logger.LogWarning("TTS No Audio URL - RequestId: {RequestId}, SessionId: {SessionId}", 
+                        requestId, sessionId ?? "none");
                 }
                 
-                _logger.LogInformation("TTS audio ready for session {SessionId}, URL: {AudioUrl}, duration: {Duration}ms", 
-                    sessionId, result.AudioUrl, result.Duration);
+                var totalProcessingTime = (DateTime.UtcNow - receivedAt).TotalMilliseconds;
+                _logger.LogInformation("TTS Request Completed - RequestId: {RequestId}, SessionId: {SessionId}, TotalTime: {TotalTime}ms, AudioUrl: {AudioUrl}, AudioDuration: {Duration}ms", 
+                    sessionId ?? "none", requestId, totalProcessingTime, result.AudioUrl ?? "none", result.Duration);
             }
             else
             {
-                _logger.LogWarning("Failed to synthesize speech for request {Id}: {Error}", 
-                    requestId, result.Error);
+                _logger.LogError("TTS Synthesis Failed - RequestId: {RequestId}, SessionId: {SessionId}, Error: {Error}", 
+                    requestId, sessionId ?? "none", result.Error ?? "Unknown error");
             }
 
             await args.CompleteMessageAsync(args.Message);
+            
+            var completionTime = (DateTime.UtcNow - receivedAt).TotalMilliseconds;
+            _logger.LogInformation("TTS Message Completed - MessageId: {MessageId}, RequestId: {RequestId}, TotalProcessingTime: {Time}ms",
+                messageId, requestId, completionTime);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing TTS request");
+            var processingTime = (DateTime.UtcNow - receivedAt).TotalMilliseconds;
+            _logger.LogError(ex, "TTS Request Failed - MessageId: {MessageId}, SessionId: {SessionId}, ProcessingTime: {Time}ms",
+                messageId, args.Message.SessionId, processingTime);
             await args.AbandonMessageAsync(args.Message);
         }
     }
@@ -179,8 +226,8 @@ public class TTSQueueProcessor : BackgroundService
             await sender.SendMessageAsync(serviceBusMessage);
             await sender.DisposeAsync();
             
-            _logger.LogInformation("Sent audio response to dispatcher for session {SessionId}, task {TaskId}", 
-                sessionId, taskId);
+            _logger.LogInformation("Audio Response Dispatched - SessionId: {SessionId}, TaskId: {TaskId}, AudioUrl: {AudioUrl}, Duration: {Duration}s, MessageId: {MessageId}", 
+                sessionId, taskId, audioUrl, durationSeconds, serviceBusMessage.MessageId);
         }
         catch (Exception ex)
         {

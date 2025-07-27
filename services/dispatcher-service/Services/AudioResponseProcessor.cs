@@ -29,14 +29,19 @@ public class AudioResponseProcessor : BackgroundService
     {
         try
         {
-            var connectionString = _configuration.GetConnectionString("ServiceBus");
+            _logger.LogInformation("AudioResponseProcessor starting...");
+            
+            var connectionString = _configuration.GetConnectionString("ServiceBus") ?? 
+                Environment.GetEnvironmentVariable("AZURE_SERVICE_BUS_CONNECTION_STRING");
+            
             if (string.IsNullOrEmpty(connectionString))
             {
-                _logger.LogWarning("Service Bus connection string not found. Audio response processing disabled.");
+                _logger.LogError("Service Bus connection string not found in configuration or environment. Audio response processing disabled.");
+                _logger.LogError("Checked: ConnectionStrings:ServiceBus and AZURE_SERVICE_BUS_CONNECTION_STRING");
                 return;
             }
 
-            _logger.LogInformation("Initializing audio response processor...");
+            _logger.LogInformation("Initializing audio response processor with Service Bus connection...");
             _serviceBusClient = new ServiceBusClient(connectionString);
             
             _processor = _serviceBusClient.CreateProcessor("audio-responses", new ServiceBusProcessorOptions
@@ -48,14 +53,24 @@ public class AudioResponseProcessor : BackgroundService
             _processor.ProcessMessageAsync += ProcessAudioResponseAsync;
             _processor.ProcessErrorAsync += ProcessErrorAsync;
 
+            _logger.LogInformation("Starting audio response processor for queue: audio-responses");
             await _processor.StartProcessingAsync(stoppingToken);
-            _logger.LogInformation("Audio response processor started, listening to audio-responses queue");
+            _logger.LogInformation("Audio response processor started successfully, listening to audio-responses queue");
 
-            await Task.Delay(Timeout.Infinite, stoppingToken);
+            // Keep the service running
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                _logger.LogDebug("Audio response processor is running...");
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogInformation("Audio response processor cancelled");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start audio response processor");
+            _logger.LogError(ex, "Failed to start audio response processor: {Message}", ex.Message);
             throw;
         }
     }
@@ -65,7 +80,8 @@ public class AudioResponseProcessor : BackgroundService
         try
         {
             var body = Encoding.UTF8.GetString(args.Message.Body);
-            _logger.LogInformation("Processing audio response from queue");
+            _logger.LogInformation("Processing audio response from queue, message size: {Size} bytes", body.Length);
+            _logger.LogDebug("Audio response message body: {Body}", body);
 
             var audioResponse = JsonSerializer.Deserialize<AudioResponseRequest>(body, new JsonSerializerOptions
             {
@@ -74,13 +90,14 @@ public class AudioResponseProcessor : BackgroundService
 
             if (audioResponse == null || string.IsNullOrEmpty(audioResponse.SessionId))
             {
-                _logger.LogWarning("Invalid audio response message - missing session ID");
+                _logger.LogWarning("Invalid audio response message - missing session ID. Body: {Body}", body);
                 await args.CompleteMessageAsync(args.Message);
                 return;
             }
 
-            _logger.LogInformation("Broadcasting audio response for session {SessionId}, task {TaskId}", 
-                audioResponse.SessionId, audioResponse.TaskId);
+            _logger.LogInformation("Broadcasting audio response for session {SessionId}, task {TaskId}, AudioUrl: {AudioUrl}, Text: {Text}", 
+                audioResponse.SessionId, audioResponse.TaskId, audioResponse.AudioBlobPath, 
+                audioResponse.TranscriptionText?.Substring(0, Math.Min(audioResponse.TranscriptionText.Length, 100)));
 
             // Create response message for SignalR
             var responseMessage = new AudioResponseMessage
@@ -93,6 +110,10 @@ public class AudioResponseProcessor : BackgroundService
                 Timestamp = DateTime.UtcNow
             };
 
+            _logger.LogInformation("Sending AudioResponseReady via SignalR with AudioUrl: {AudioUrl}, Duration: {Duration}s", 
+                responseMessage.AudioUrl, responseMessage.DurationSeconds);
+            _logger.LogDebug("Full SignalR message: {Message}", JsonSerializer.Serialize(responseMessage));
+
             // Broadcast to the specific session via SignalR
             await _voiceHub.Clients.Group(audioResponse.SessionId)
                 .SendAsync("AudioResponseReady", responseMessage, CancellationToken.None);
@@ -101,7 +122,7 @@ public class AudioResponseProcessor : BackgroundService
             await _voiceHub.Clients.Group($"session:{audioResponse.SessionId}")
                 .SendAsync("AudioResponseReady", responseMessage, CancellationToken.None);
 
-            _logger.LogInformation("Successfully broadcast audio response for session {SessionId}", 
+            _logger.LogInformation("Successfully broadcast audio response for session {SessionId} to SignalR groups", 
                 audioResponse.SessionId);
 
             await args.CompleteMessageAsync(args.Message);
@@ -115,7 +136,8 @@ public class AudioResponseProcessor : BackgroundService
 
     private Task ProcessErrorAsync(ProcessErrorEventArgs args)
     {
-        _logger.LogError(args.Exception, "Error in Service Bus processor");
+        _logger.LogError(args.Exception, "Error in Service Bus processor for audio-responses queue. Source: {Source}, Namespace: {Namespace}", 
+            args.ErrorSource, args.FullyQualifiedNamespace);
         return Task.CompletedTask;
     }
 

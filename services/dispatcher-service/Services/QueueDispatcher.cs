@@ -40,8 +40,16 @@ public class QueueDispatcher : IQueueDispatcher, IDisposable
         try
         {
             var sender = GetSenderForMessageType(message.Type);
+            var queueName = GetQueueNameForMessageType(message.Type);
             
-            var serviceBusMessage = new ServiceBusMessage(JsonSerializer.Serialize(message))
+            _logger.LogInformation("Preparing to dispatch message - MessageId: {MessageId}, Type: {Type}, Queue: {Queue}, SessionId: {SessionId}",
+                message.MessageId, message.Type, queueName, message.SessionId);
+            
+            var messageJson = JsonSerializer.Serialize(message);
+            _logger.LogDebug("Message content - MessageId: {MessageId}, Content: {Content}",
+                message.MessageId, messageJson);
+            
+            var serviceBusMessage = new ServiceBusMessage(messageJson)
             {
                 SessionId = message.SessionId,
                 MessageId = message.MessageId,
@@ -56,12 +64,13 @@ public class QueueDispatcher : IQueueDispatcher, IDisposable
 
             await sender.SendMessageAsync(serviceBusMessage);
             
-            _logger.LogInformation("Dispatched message {MessageId} of type {Type} to queue", 
-                message.MessageId, message.Type);
+            _logger.LogInformation("Successfully dispatched message - MessageId: {MessageId}, Type: {Type}, Queue: {Queue}, Priority: {Priority}", 
+                message.MessageId, message.Type, queueName, message.Priority);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error dispatching message {MessageId}", message.MessageId);
+            _logger.LogError(ex, "Failed to dispatch message - MessageId: {MessageId}, Type: {Type}", 
+                message.MessageId, message.Type);
             throw;
         }
     }
@@ -118,22 +127,40 @@ public class QueueDispatcher : IQueueDispatcher, IDisposable
     {
         try
         {
+            var messageId = Guid.NewGuid().ToString();
+            
+            // Log the incoming TTS request details
+            _logger.LogInformation("TTS Request Initiated - SessionId: {SessionId}, MessageId: {MessageId}, Timestamp: {Timestamp}",
+                sessionId, messageId, DateTime.UtcNow);
+            
+            // Log the payload content for debugging
+            var payloadJson = JsonSerializer.Serialize(payload);
+            _logger.LogDebug("TTS Request Payload - MessageId: {MessageId}, Payload: {Payload}",
+                messageId, payloadJson);
+            
             var message = new QueueMessage
             {
                 SessionId = sessionId,
-                MessageId = Guid.NewGuid().ToString(),
+                MessageId = messageId,
                 Type = "synthesize",
                 Payload = payload,
                 Priority = MessagePriority.High,
                 Timestamp = DateTime.UtcNow
             };
 
+            _logger.LogInformation("Dispatching TTS message to queue - MessageId: {MessageId}, Queue: tts-processing",
+                messageId);
+            
             await DispatchAsync(message);
+            
+            _logger.LogInformation("TTS Request Successfully Queued - MessageId: {MessageId}, SessionId: {SessionId}",
+                messageId, sessionId);
+            
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending to TTS queue");
+            _logger.LogError(ex, "Error sending to TTS queue - SessionId: {SessionId}", sessionId);
             return false;
         }
     }
@@ -146,6 +173,17 @@ public class QueueDispatcher : IQueueDispatcher, IDisposable
             "generate" or "refactor" => _generatorSender,
             "synthesize" or "voice-response" => _ttsSender,
             _ => _dispatcherSender
+        };
+    }
+    
+    private string GetQueueNameForMessageType(string messageType)
+    {
+        return messageType.ToLower() switch
+        {
+            "claude-request" or "coding" or "explanation" or "debugging" => "claude-processing",
+            "generate" or "refactor" => "code-generation",
+            "synthesize" or "voice-response" => "tts-processing",
+            _ => "dispatcher"
         };
     }
 

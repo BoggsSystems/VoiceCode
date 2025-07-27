@@ -65,6 +65,12 @@ public class ResultProcessorService : BackgroundService
 
     private async Task ProcessWorkerResultAsync(ProcessMessageEventArgs args)
     {
+        var receivedAt = DateTime.UtcNow;
+        var messageId = args.Message.MessageId;
+        
+        _logger.LogInformation("Worker Result Received - MessageId: {MessageId}, SequenceNumber: {SequenceNumber}, EnqueuedTime: {EnqueuedTime}",
+            messageId, args.Message.SequenceNumber, args.Message.EnqueuedTime);
+        
         try
         {
             var body = Encoding.UTF8.GetString(args.Message.Body);
@@ -72,16 +78,18 @@ public class ResultProcessorService : BackgroundService
             
             if (result == null)
             {
-                _logger.LogError("Failed to deserialize worker result");
+                _logger.LogError("Failed to deserialize worker result - MessageId: {MessageId}", messageId);
                 await args.CompleteMessageAsync(args.Message);
                 return;
             }
 
             var workerId = result.Metadata?.ContainsKey("worker_id") == true ? 
                 result.Metadata["worker_id"]?.ToString() : "unknown";
-            _logger.LogInformation("Processing result for task {TaskId} from worker {WorkerId}, SessionId from metadata: {SessionId}", 
-                result.TaskId, workerId, 
-                result.Metadata?.ContainsKey("sessionId") == true ? result.Metadata["sessionId"]?.ToString() : "none");
+            var sessionId = result.Metadata?.ContainsKey("sessionId") == true ? 
+                result.Metadata["sessionId"]?.ToString() : "none";
+            
+            _logger.LogInformation("Worker Result Details - TaskId: {TaskId}, WorkerId: {WorkerId}, SessionId: {SessionId}, Success: {Success}, HasError: {HasError}", 
+                result.TaskId, workerId, sessionId, result.Success, !string.IsNullOrEmpty(result.Error));
 
             // Convert to our model
             var workerResult = new WorkerResult
@@ -96,13 +104,20 @@ public class ResultProcessorService : BackgroundService
             };
 
             // Store result and check if we need to synthesize
+            _logger.LogDebug("Storing worker result for TaskId: {TaskId}", result.TaskId);
             await StoreAndProcessResult(workerResult);
 
             await args.CompleteMessageAsync(args.Message);
+            
+            var processingDuration = (DateTime.UtcNow - receivedAt).TotalMilliseconds;
+            _logger.LogInformation("Worker Result Processed - MessageId: {MessageId}, TaskId: {TaskId}, ProcessingTime: {Time}ms",
+                messageId, result.TaskId, processingDuration);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing worker result");
+            var failureDuration = (DateTime.UtcNow - receivedAt).TotalMilliseconds;
+            _logger.LogError(ex, "Worker Result Processing Failed - MessageId: {MessageId}, ProcessingTime: {Time}ms",
+                messageId, failureDuration);
             await args.AbandonMessageAsync(args.Message);
         }
     }
@@ -125,15 +140,25 @@ public class ResultProcessorService : BackgroundService
 
     private async Task SynthesizeResponseAsync(string taskId)
     {
+        var synthesisStartTime = DateTime.UtcNow;
+        
+        _logger.LogInformation("Starting Voice Response Synthesis - TaskId: {TaskId}, Timestamp: {Timestamp}",
+            taskId, synthesisStartTime);
+        
         try
         {
             List<WorkerResult> results;
             lock (_taskResults)
             {
                 if (!_taskResults.ContainsKey(taskId))
+                {
+                    _logger.LogWarning("No results found for TaskId: {TaskId}, skipping synthesis", taskId);
                     return;
+                }
                     
                 results = _taskResults[taskId].ToList();
+                _logger.LogInformation("Found {Count} worker results for TaskId: {TaskId}",
+                    results.Count, taskId);
             }
 
             using var scope = _serviceProvider.CreateScope();
@@ -177,23 +202,48 @@ public class ResultProcessorService : BackgroundService
                     StartTime = DateTime.UtcNow
                 }
             };
+            
+            _logger.LogInformation("Calling OpenAI Synthesis Service - TaskId: {TaskId}, SessionId: {SessionId}, Workers: {Workers}",
+                taskId, sessionId, string.Join(", ", results.Select(r => r.WorkerId)));
 
+            var openAISynthesisStartTime = DateTime.UtcNow;
             var voiceResponse = await synthesisService.SynthesizeResponseAsync(synthesisRequest);
+            var openAISynthesisDuration = (DateTime.UtcNow - openAISynthesisStartTime).TotalMilliseconds;
+            
+            _logger.LogInformation("OpenAI Synthesis Complete - TaskId: {TaskId}, ResponseLength: {Length}, SynthesisTime: {Time}ms",
+                taskId, voiceResponse.SpokenResponse?.Length ?? 0, openAISynthesisDuration);
+            
+            // Log the voice response details
+            var responsePreview = voiceResponse.SpokenResponse?.Length > 100 
+                ? voiceResponse.SpokenResponse.Substring(0, 100) + "..." 
+                : voiceResponse.SpokenResponse;
+            _logger.LogDebug("Voice Response Preview - TaskId: {TaskId}, Response: {Response}",
+                taskId, responsePreview);
             
             // Send to TTS queue
-            await ttsQueueService.SendToTTSAsync(voiceResponse);
+            _logger.LogInformation("Sending to TTS Queue - TaskId: {TaskId}, SessionId: {SessionId}",
+                taskId, voiceResponse.SessionId);
             
-            _logger.LogInformation("Synthesized and queued voice response for task {TaskId}", taskId);
+            var ttsQueueStartTime = DateTime.UtcNow;
+            await ttsQueueService.SendToTTSAsync(voiceResponse);
+            var ttsQueueDuration = (DateTime.UtcNow - ttsQueueStartTime).TotalMilliseconds;
+            
+            var totalDuration = (DateTime.UtcNow - synthesisStartTime).TotalMilliseconds;
+            _logger.LogInformation("Voice Response Pipeline Complete - TaskId: {TaskId}, SessionId: {SessionId}, TotalTime: {TotalTime}ms, OpenAITime: {OpenAI}ms, QueueTime: {Queue}ms", 
+                taskId, sessionId, totalDuration, openAISynthesisDuration, ttsQueueDuration);
 
             // Clean up
             lock (_taskResults)
             {
                 _taskResults.Remove(taskId);
+                _logger.LogDebug("Cleaned up results for TaskId: {TaskId}", taskId);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to synthesize response for task {TaskId}", taskId);
+            var failureDuration = (DateTime.UtcNow - synthesisStartTime).TotalMilliseconds;
+            _logger.LogError(ex, "Voice Response Synthesis Failed - TaskId: {TaskId}, FailureTime: {Time}ms", 
+                taskId, failureDuration);
         }
     }
 
