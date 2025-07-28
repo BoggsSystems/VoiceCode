@@ -106,18 +106,37 @@ class RemoteLogger {
         window.opener.receiveLogs(payload);
       }
       
-      // Try to send to dispatcher service
-      if (process.env.REACT_APP_DISPATCHER_SERVICE_URL) {
-        await fetch(`${process.env.REACT_APP_DISPATCHER_SERVICE_URL}/api/logs`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        }).catch(err => {
-          // Ignore errors - this is best effort
-        });
-      }
+      // Try to send to router service logging endpoint
+      const apiUrl = process.env.REACT_APP_API_BASE_URL || 'https://voicecode-router.orangewater-a2f689a8.eastus.azurecontainerapps.io';
+      const loggingEndpoint = `${apiUrl}/api/logs/frontend/simple`;
+      
+      // Transform logs to match FrontendLogEntry format
+      const transformedPayload = {
+        logs: logsToSend.map(log => ({
+          timestamp: log.timestamp,
+          level: log.level,
+          message: log.message,
+          component: 'AudioPlayer',
+          sessionId: payload.sessionId,
+          details: {
+            data: log.data,
+            url: log.url,
+            userAgent: log.userAgent,
+            device: payload.device
+          }
+        }))
+      };
+      
+      await fetch(loggingEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth-token') || ''}`
+        },
+        body: JSON.stringify(transformedPayload)
+      }).catch(err => {
+        console.error('[RemoteLogger] Failed to send logs to backend:', err);
+      });
     } catch (error) {
       console.error('[RemoteLogger] Error flushing logs:', error);
       // Still try to save to localStorage
