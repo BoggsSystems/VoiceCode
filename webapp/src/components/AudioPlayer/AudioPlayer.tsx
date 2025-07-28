@@ -131,7 +131,7 @@ const AudioPlayer: React.FC = () => {
               dispatch(setPlayingAudio(true));
               setError(null);
               setRetryCount(0);
-              showSuccess('✅ Audio loaded successfully');
+              // Success will be shown by play event
             },
             // Strategy 2: Fetch with CORS
             async (url) => {
@@ -175,7 +175,7 @@ const AudioPlayer: React.FC = () => {
               dispatch(setPlayingAudio(true));
               setError(null);
               setRetryCount(0);
-              showSuccess('✅ Audio loaded successfully');
+              // Success will be shown by play event
             },
             // Strategy 3: Convert to data URL
             async (url) => {
@@ -204,7 +204,7 @@ const AudioPlayer: React.FC = () => {
               dispatch(setPlayingAudio(true));
               setError(null);
               setRetryCount(0);
-              showSuccess('✅ Audio loaded successfully');
+              // Success will be shown by play event
             },
             // Strategy 4: Use proxy endpoint
             async (url) => {
@@ -228,7 +228,7 @@ const AudioPlayer: React.FC = () => {
               dispatch(setPlayingAudio(true));
               setError(null);
               setRetryCount(0);
-              showSuccess('✅ Audio loaded successfully');
+              // Success will be shown by play event
             }
           ]);
         } else {
@@ -293,7 +293,7 @@ const AudioPlayer: React.FC = () => {
               dispatch(setPlayingAudio(true));
               setError(null);
               setRetryCount(0);
-              showSuccess('✅ Audio loaded successfully');
+              // Success will be shown by play event
             },
             // Strategy 2: Use proxy endpoint
             async (url) => {
@@ -315,7 +315,7 @@ const AudioPlayer: React.FC = () => {
               dispatch(setPlayingAudio(true));
               setError(null);
               setRetryCount(0);
-              showSuccess('✅ Audio loaded successfully');
+              // Success will be shown by play event
             }
           ]);
         }
@@ -545,12 +545,25 @@ const AudioPlayer: React.FC = () => {
             muted: audioRef.current?.muted 
           });
           if (!error) {
-            showSuccess('✅ MP3 loaded successfully');
+            // Don't show success here - wait for actual playback
+            remoteLogger.info('[AudioPlayer] Metadata loaded, preparing for playback');
             // Ensure audio is not muted
             if (audioRef.current) {
               audioRef.current.volume = 1.0;
               audioRef.current.muted = false;
               remoteLogger.info('[AudioPlayer] Set volume to 1.0 and unmuted');
+              
+              // Log more details about the audio state
+              remoteLogger.info('[AudioPlayer] Audio state after metadata load', {
+                src: audioRef.current.src,
+                duration: audioRef.current.duration,
+                volume: audioRef.current.volume,
+                muted: audioRef.current.muted,
+                paused: audioRef.current.paused,
+                readyState: audioRef.current.readyState,
+                networkState: audioRef.current.networkState,
+                error: audioRef.current.error
+              });
             }
           }
         }}
@@ -578,6 +591,34 @@ const AudioPlayer: React.FC = () => {
           console.log('[AudioPlayer] Volume changed to:', audioRef.current?.volume, 'muted:', audioRef.current?.muted);
           remoteLogger.info('[AudioPlayer] Volume changed', { volume: audioRef.current?.volume, muted: audioRef.current?.muted });
           signalrDebugger.log('info', '[AudioPlayer] Volume changed', { volume: audioRef.current?.volume, muted: audioRef.current?.muted });
+        }}
+        onPause={() => {
+          console.log('[AudioPlayer] Audio paused');
+          remoteLogger.warn('[AudioPlayer] Audio paused unexpectedly');
+          signalrDebugger.log('warn', '[AudioPlayer] Audio paused');
+        }}
+        onStalled={() => {
+          console.log('[AudioPlayer] Audio stalled');
+          remoteLogger.warn('[AudioPlayer] Audio stalled - network issue?');
+          signalrDebugger.log('warn', '[AudioPlayer] Audio stalled');
+        }}
+        onWaiting={() => {
+          console.log('[AudioPlayer] Audio waiting for data');
+          remoteLogger.info('[AudioPlayer] Audio waiting for data');
+        }}
+        onTimeUpdate={() => {
+          if (audioRef.current && audioRef.current.currentTime > 0 && !audioRef.current.paused) {
+            // Only log once when playback actually starts
+            if (!audioRef.current.dataset.playbackLogged) {
+              audioRef.current.dataset.playbackLogged = 'true';
+              console.log('[AudioPlayer] Audio is actually playing, time:', audioRef.current.currentTime);
+              remoteLogger.info('[AudioPlayer] Audio playback confirmed', { 
+                currentTime: audioRef.current.currentTime,
+                duration: audioRef.current.duration 
+              });
+              showSuccess('🔊 Audio is playing!');
+            }
+          }
         }}
         style={{ display: 'none' }}
         preload="auto"
