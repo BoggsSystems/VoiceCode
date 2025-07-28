@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { remoteLogger } from '../../services/remoteLogger';
 
 export interface VoiceState {
   isRecording: boolean;
@@ -14,6 +15,7 @@ export interface VoiceState {
   recognitionResults: TranscriptionResult[];
   audioQueue: AudioQueueItem[];
   playingAudio: boolean;
+  playedAudioUrls: string[]; // Track URLs that have been played
 }
 
 export interface TranscriptionResult {
@@ -45,6 +47,7 @@ const initialState: VoiceState = {
   recognitionResults: [],
   audioQueue: [],
   playingAudio: false,
+  playedAudioUrls: [], // Initialize empty array for played URLs
 };
 
 const voiceSlice = createSlice({
@@ -115,6 +118,23 @@ const voiceSlice = createSlice({
       }
     },
     audioReady: (state, action: PayloadAction<{ id: string; audioUrl: string; text?: string }>) => {
+      // Check if this audio URL has already been played or is in queue
+      const audioUrl = action.payload.audioUrl;
+      const isAlreadyPlayed = state.playedAudioUrls.includes(audioUrl);
+      const isInQueue = state.audioQueue.some(item => item.audioUrl === audioUrl);
+      
+      if (isAlreadyPlayed || isInQueue) {
+        console.log('[VoiceSlice] Skipping duplicate audio URL:', audioUrl);
+        remoteLogger.warn('[VoiceSlice] Duplicate audio URL detected and skipped', {
+          audioUrl,
+          isAlreadyPlayed,
+          isInQueue,
+          playedUrlsCount: state.playedAudioUrls.length,
+          queueLength: state.audioQueue.length
+        });
+        return; // Skip duplicate audio
+      }
+      
       const audioItem: AudioQueueItem = {
         id: action.payload.id,
         audioUrl: action.payload.audioUrl,
@@ -122,10 +142,26 @@ const voiceSlice = createSlice({
         timestamp: new Date(),
       };
       state.audioQueue.push(audioItem);
+      
+      console.log('[VoiceSlice] New audio added to queue:', audioUrl);
+      remoteLogger.info('[VoiceSlice] New audio added to queue', {
+        audioUrl,
+        id: action.payload.id,
+        queueLength: state.audioQueue.length,
+        playedUrlsCount: state.playedAudioUrls.length
+      });
     },
     playNextAudio: (state) => {
       if (state.audioQueue.length > 0) {
-        state.audioQueue.shift();
+        const playedItem = state.audioQueue.shift();
+        if (playedItem) {
+          // Add the URL to played list
+          state.playedAudioUrls.push(playedItem.audioUrl);
+          // Keep only last 100 played URLs to prevent memory issues
+          if (state.playedAudioUrls.length > 100) {
+            state.playedAudioUrls = state.playedAudioUrls.slice(-100);
+          }
+        }
       }
     },
     setPlayingAudio: (state, action: PayloadAction<boolean>) => {
@@ -135,11 +171,15 @@ const voiceSlice = createSlice({
       state.audioQueue = [];
       state.playingAudio = false;
     },
+    clearPlayedAudioUrls: (state) => {
+      state.playedAudioUrls = [];
+    },
     resetVoiceState: (state) => {
       return {
         ...initialState,
         permissionGranted: state.permissionGranted,
         permissionRequested: state.permissionRequested,
+        playedAudioUrls: [], // Reset played URLs on voice state reset
       };
     },
   },
@@ -166,6 +206,7 @@ export const {
   playNextAudio,
   setPlayingAudio,
   clearAudioQueue,
+  clearPlayedAudioUrls,
   resetVoiceState,
 } = voiceSlice.actions;
 

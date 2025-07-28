@@ -444,13 +444,21 @@ const AudioPlayer: React.FC = () => {
   };
 
   const handleAudioEnded = () => {
+    const currentAudio = audioQueue[0]; // Get the audio that just finished
     console.log('[AudioPlayer] Audio ended');
-    remoteLogger.info('[AudioPlayer] Audio ended');
-    signalrDebugger.log('info', '[AudioPlayer] Audio ended');
+    remoteLogger.info('[AudioPlayer] Audio ended', {
+      audioUrl: currentAudio?.audioUrl,
+      id: currentAudio?.id,
+      queueLength: audioQueue.length
+    });
+    signalrDebugger.log('info', '[AudioPlayer] Audio ended', {
+      audioUrl: currentAudio?.audioUrl?.substring(0, 100),
+      id: currentAudio?.id
+    });
     dispatch(setPlayingAudio(false));
     setLoadSuccess(false); // Hide success message when audio ends
     
-    // Remove the played audio from queue
+    // Remove the played audio from queue (this will also add it to playedAudioUrls)
     dispatch(playNextAudio());
     
     // Don't reset index, let useEffect handle the next audio
