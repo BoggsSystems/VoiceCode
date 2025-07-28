@@ -129,9 +129,17 @@ export const initializeSignalR = createAsyncThunk(
         dispatch({ type: 'projects/generationComplete', payload: result });
       });
 
+      // Listen for AudioReady (from QueueProcessorService)
       connection.on('AudioReady', (result) => {
         console.log('[SignalR] AudioReady event received:', result);
-        dispatch({ type: 'voice/audioReady', payload: result });
+        signalrDebugger.log('info', 'AudioReady received', result);
+        
+        // Map the SynthesisResult to the expected payload format
+        dispatch({ type: 'voice/audioReady', payload: {
+          id: result.RequestId || result.requestId || Date.now().toString(),
+          audioUrl: result.AudioUrl || result.audioUrl,
+          text: result.Text || result.text || ''
+        }});
       });
 
       // Also listen for AudioResponseReady (the event dispatcher uses)
