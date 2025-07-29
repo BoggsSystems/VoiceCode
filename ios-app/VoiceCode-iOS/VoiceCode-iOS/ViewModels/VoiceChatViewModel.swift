@@ -167,15 +167,19 @@ class VoiceChatViewModel: ObservableObject {
             )
             print("✅ VoiceChatViewModel: Voice command processed successfully")
             print("✅ VoiceChatViewModel: Task ID: \(commandResult.taskId)")
-            print("✅ VoiceChatViewModel: Status: \(commandResult.status)")
+            print("✅ VoiceChatViewModel: Worker: \(commandResult.worker)")
+            print("✅ VoiceChatViewModel: Success: \(commandResult.success)")
             
-            // Update status
+            // Update UI with initial response
             await MainActor.run {
-                self.status = .ready
-                if let message = commandResult.message {
-                    self.addMessage(content: message, type: .assistant)
-                }
+                self.currentResponse = commandResult.response
+                self.addMessage(content: commandResult.response, type: .assistant)
             }
+            
+            print("✅ VoiceChatViewModel: Voice command processed, now polling for audio...")
+            
+            // Start polling for audio response
+            await pollForAudioResponse(taskId: commandResult.taskId)
             
             print("✅ VoiceChatViewModel: ===== RECORDING STOPPED AND PROCESSED =====")
             
@@ -320,6 +324,61 @@ class VoiceChatViewModel: ObservableObject {
     func addMessage(content: String, type: Message.MessageType) {
         let message = Message(content: content, type: type)
         messages.append(message)
+    }
+    
+    private func pollForAudioResponse(taskId: String) async {
+        print("🎵 VoiceChatViewModel: ===== POLLING FOR AUDIO RESPONSE =====")
+        print("🎵 VoiceChatViewModel: Task ID: \(taskId)")
+        
+        var pollCount = 0
+        let maxPolls = 30  // Poll for up to 30 seconds
+        let pollInterval: TimeInterval = 1.0  // Poll every 1 second
+        
+        while pollCount < maxPolls {
+            do {
+                print("🎵 VoiceChatViewModel: Poll attempt \(pollCount + 1)/\(maxPolls)")
+                
+                let audioResponse = try await NetworkService.shared.pollForAudioResponse(taskId: taskId)
+                
+                if audioResponse.status == "ready", let audioUrl = audioResponse.audioUrl {
+                    print("✅ VoiceChatViewModel: Audio is ready!")
+                    print("✅ VoiceChatViewModel: Audio URL: \(audioUrl)")
+                    print("✅ VoiceChatViewModel: Audio text: \(audioResponse.text ?? "N/A")")
+                    
+                    // Create audio response for playback
+                    let audioResponseData = AudioResponse(
+                        id: taskId,
+                        audioUrl: audioUrl,
+                        text: audioResponse.text ?? ""
+                    )
+                    
+                    await MainActor.run {
+                        self.handleAudioResponse(audioResponseData)
+                        self.status = .ready
+                    }
+                    
+                    print("✅ VoiceChatViewModel: ===== AUDIO POLLING COMPLETE =====")
+                    return
+                } else {
+                    print("🎵 VoiceChatViewModel: Audio not ready yet, status: \(audioResponse.status)")
+                }
+                
+                // Wait before next poll
+                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                pollCount += 1
+                
+            } catch {
+                print("❌ VoiceChatViewModel: Error polling for audio: \(error)")
+                // Continue polling despite errors
+                try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                pollCount += 1
+            }
+        }
+        
+        print("⚠️ VoiceChatViewModel: Audio polling timed out after \(maxPolls) attempts")
+        await MainActor.run {
+            self.status = .ready
+        }
     }
 }
 

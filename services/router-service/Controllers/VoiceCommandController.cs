@@ -15,17 +15,20 @@ public class VoiceCommandController : ControllerBase
     private readonly IIntentClassifier _intentClassifier;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
+    private readonly IAudioResponseTracker _audioTracker;
 
     public VoiceCommandController(
         ILogger<VoiceCommandController> logger,
         IIntentClassifier intentClassifier,
         IHttpClientFactory httpClientFactory,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IAudioResponseTracker audioTracker)
     {
         _logger = logger;
         _intentClassifier = intentClassifier;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
+        _audioTracker = audioTracker;
     }
 
     [HttpPost("process")]
@@ -117,6 +120,46 @@ public class VoiceCommandController : ControllerBase
             return StatusCode(500, new { error = "Internal server error", message = ex.Message });
         }
     }
+
+    [HttpGet("{taskId}/audio")]
+    public async Task<IActionResult> GetAudioResponse(string taskId)
+    {
+        try
+        {
+            _logger.LogInformation("Checking audio response for task {TaskId}", taskId);
+
+            var audioResponse = await _audioTracker.GetAudioResponseAsync(taskId);
+            
+            if (audioResponse == null)
+            {
+                _logger.LogDebug("No audio response available yet for task {TaskId}", taskId);
+                return Ok(new AudioPollResponse
+                {
+                    TaskId = taskId,
+                    Status = "pending",
+                    Message = "Audio response not ready yet"
+                });
+            }
+
+            _logger.LogInformation("Audio response found for task {TaskId}, URL: {AudioUrl}", 
+                taskId, audioResponse.AudioUrl);
+
+            return Ok(new AudioPollResponse
+            {
+                TaskId = taskId,
+                Status = "ready",
+                AudioUrl = audioResponse.AudioUrl,
+                Text = audioResponse.Text,
+                Duration = audioResponse.Duration,
+                Timestamp = audioResponse.Timestamp
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving audio response for task {TaskId}", taskId);
+            return StatusCode(500, new { error = "Failed to retrieve audio response" });
+        }
+    }
 }
 
 public class VoiceCommandRequest
@@ -145,4 +188,16 @@ public class TaskExecutionResponse
     public string Response { get; set; } = string.Empty;
     public int? WorkerNumber { get; set; }
     public string? Error { get; set; }
+}
+
+// Audio polling response
+public class AudioPollResponse
+{
+    public string TaskId { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty; // "pending" or "ready"
+    public string? Message { get; set; }
+    public string? AudioUrl { get; set; }
+    public string? Text { get; set; }
+    public double? Duration { get; set; }
+    public DateTime? Timestamp { get; set; }
 }
