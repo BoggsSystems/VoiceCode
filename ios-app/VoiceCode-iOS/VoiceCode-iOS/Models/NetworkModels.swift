@@ -31,17 +31,24 @@ struct VoiceCommandRequest: Codable {
 }
 
 struct VoiceCommandResponse: Codable {
+    let success: Bool
     let taskId: String
-    let status: String
+    let worker: Int
+    let instructions: String
+    let response: String
+    let metadata: [String: AnyCodable]?
+}
+
+// MARK: - Audio Polling Models
+
+struct AudioPollResponse: Codable {
+    let taskId: String
+    let status: String  // "pending" or "ready"
     let message: String?
-    let result: ProcessingResult?
-    let error: String?
-    
-    struct ProcessingResult: Codable {
-        let success: Bool
-        let data: [String: AnyCodable]?
-        let error: String?
-    }
+    let audioUrl: String?
+    let text: String?
+    let duration: Double?
+    let timestamp: Date?
 }
 
 // MARK: - Helper for Encoding/Decoding Any Type

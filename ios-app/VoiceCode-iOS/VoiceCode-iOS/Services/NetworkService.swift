@@ -339,4 +339,64 @@ class NetworkService {
             throw error
         }
     }
+    
+    func pollForAudioResponse(taskId: String) async throws -> AudioPollResponse {
+        print("📡 NetworkService: ===== POLLING FOR AUDIO RESPONSE =====")
+        print("📡 NetworkService: Task ID: \(taskId)")
+        
+        guard let token = KeychainService.shared.getAuthToken() else {
+            print("❌ NetworkService: No auth token available")
+            throw NetworkError.unauthorized
+        }
+        
+        guard let url = URL(string: "\(baseURL)/api/voicecommand/\(taskId)/audio") else {
+            print("❌ NetworkService: Invalid URL for audio polling")
+            throw NetworkError.invalidURL
+        }
+        
+        print("📡 NetworkService: Audio polling endpoint: \(url.absoluteString)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (data, response) = try await session.data(for: request)
+            
+            print("📡 NetworkService: ===== AUDIO POLL RESPONSE RECEIVED =====")
+            print("📡 NetworkService: Response data size: \(data.count) bytes")
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ NetworkService: Invalid response type")
+                throw NetworkError.invalidResponse
+            }
+            
+            print("📡 NetworkService: HTTP Status Code: \(httpResponse.statusCode)")
+            
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📡 NetworkService: Response Body: \(responseString)")
+            }
+            
+            guard httpResponse.statusCode == 200 else {
+                print("❌ NetworkService: Audio polling failed with status: \(httpResponse.statusCode)")
+                throw NetworkError.serverError("Audio polling failed: \(httpResponse.statusCode)")
+            }
+            
+            // Parse audio poll response
+            let decoder = JSONDecoder()
+            let result = try decoder.decode(AudioPollResponse.self, from: data)
+            
+            print("✅ NetworkService: Audio poll successful")
+            print("✅ NetworkService: Status: \(result.status)")
+            if let audioUrl = result.audioUrl {
+                print("✅ NetworkService: Audio URL: \(audioUrl)")
+            }
+            
+            return result
+            
+        } catch {
+            print("❌ NetworkService: Audio polling error: \(error)")
+            throw error
+        }
+    }
 }

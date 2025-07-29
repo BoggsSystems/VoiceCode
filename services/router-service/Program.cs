@@ -145,6 +145,10 @@ try
     builder.Services.AddSingleton<IContextManager, ContextManagerService>();
     builder.Services.AddSingleton<IPromptEnhancer, PromptEnhancerService>();
     builder.Services.AddSingleton<VoiceCode.RouterService.Services.IQueueService, ServiceBusQueueService>();
+    builder.Services.AddSingleton<IAudioResponseTracker, AudioResponseTracker>();
+
+    // Add background service to listen for audio responses
+    builder.Services.AddHostedService<AudioResponseListener>();
 
     // Add health checks
     builder.Services.AddHealthChecks()
