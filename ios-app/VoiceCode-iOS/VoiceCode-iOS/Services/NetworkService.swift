@@ -162,4 +162,181 @@ class NetworkService {
         
         return data
     }
+    
+    func transcribeAudio(_ audioData: Data) async throws -> TranscriptionResult {
+        print("📡 NetworkService: ===== STARTING AUDIO TRANSCRIPTION =====")
+        print("📡 NetworkService: Timestamp: \(Date())")
+        print("📡 NetworkService: Audio data size: \(audioData.count) bytes")
+        
+        guard let token = KeychainService.shared.getAuthToken() else {
+            print("❌ NetworkService: No auth token available")
+            throw NetworkError.unauthorized
+        }
+        
+        guard let url = URL(string: "\(baseURL)/api/proxy/stt/transcribe") else {
+            print("❌ NetworkService: Invalid URL for transcription")
+            throw NetworkError.invalidURL
+        }
+        
+        print("📡 NetworkService: Transcription endpoint: \(url.absoluteString)")
+        
+        // Create multipart form data
+        let boundary = UUID().uuidString
+        var body = Data()
+        
+        // Add audio file part
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"audioFile\"; filename=\"recording.wav\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add language part
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
+        body.append("en-US\r\n".data(using: .utf8)!)
+        
+        // Add request ID part
+        let requestId = UUID().uuidString
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"requestId\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(requestId)\r\n".data(using: .utf8)!)
+        
+        // Close boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        print("📡 NetworkService: Multipart form data created")
+        print("📡 NetworkService: Total body size: \(body.count) bytes")
+        print("📡 NetworkService: Request ID: \(requestId)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        
+        print("📡 NetworkService: Sending transcription request...")
+        
+        do {
+            let (data, response) = try await session.data(for: request)
+            
+            print("📡 NetworkService: ===== TRANSCRIPTION RESPONSE RECEIVED =====")
+            print("📡 NetworkService: Response data size: \(data.count) bytes")
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ NetworkService: Invalid response type")
+                throw NetworkError.invalidResponse
+            }
+            
+            print("📡 NetworkService: HTTP Status Code: \(httpResponse.statusCode)")
+            
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📡 NetworkService: Response Body: \(responseString)")
+            }
+            
+            guard httpResponse.statusCode == 200 else {
+                print("❌ NetworkService: Transcription failed with status: \(httpResponse.statusCode)")
+                if httpResponse.statusCode == 401 {
+                    throw NetworkError.unauthorized
+                }
+                throw NetworkError.serverError("Transcription failed: \(httpResponse.statusCode)")
+            }
+            
+            // Parse transcription result
+            let decoder = JSONDecoder()
+            let result = try decoder.decode(TranscriptionResponse.self, from: data)
+            
+            print("✅ NetworkService: Transcription successful")
+            print("✅ NetworkService: Transcript: \(result.text ?? result.transcript ?? "N/A")")
+            print("✅ NetworkService: Confidence: \(result.confidence ?? 0)")
+            
+            return TranscriptionResult(
+                id: result.id ?? requestId,
+                text: result.text ?? result.transcript ?? "",
+                confidence: result.confidence ?? 0.95
+            )
+            
+        } catch {
+            print("❌ NetworkService: Transcription error: \(error)")
+            throw error
+        }
+    }
+    
+    func processVoiceCommand(_ transcription: String, sessionId: String) async throws -> VoiceCommandResponse {
+        print("📡 NetworkService: ===== PROCESSING VOICE COMMAND =====")
+        print("📡 NetworkService: Timestamp: \(Date())")
+        print("📡 NetworkService: Transcription: \(transcription)")
+        print("📡 NetworkService: Session ID: \(sessionId)")
+        
+        guard let token = KeychainService.shared.getAuthToken() else {
+            print("❌ NetworkService: No auth token available")
+            throw NetworkError.unauthorized
+        }
+        
+        guard let url = URL(string: "\(baseURL)/api/voicecommand/process") else {
+            print("❌ NetworkService: Invalid URL for voice command processing")
+            throw NetworkError.invalidURL
+        }
+        
+        print("📡 NetworkService: Voice command endpoint: \(url.absoluteString)")
+        
+        let requestBody = VoiceCommandRequest(
+            transcription: transcription,
+            sessionId: sessionId,
+            timestamp: ISO8601DateFormatter().string(from: Date()),
+            metadata: [
+                "source": "voice",
+                "client": "ios-app"
+            ]
+        )
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        print("📡 NetworkService: Sending voice command request...")
+        print("📡 NetworkService: Request body: \(String(data: request.httpBody!, encoding: .utf8) ?? "N/A")")
+        
+        do {
+            let (data, response) = try await session.data(for: request)
+            
+            print("📡 NetworkService: ===== VOICE COMMAND RESPONSE RECEIVED =====")
+            print("📡 NetworkService: Response data size: \(data.count) bytes")
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ NetworkService: Invalid response type")
+                throw NetworkError.invalidResponse
+            }
+            
+            print("📡 NetworkService: HTTP Status Code: \(httpResponse.statusCode)")
+            
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📡 NetworkService: Response Body: \(responseString)")
+            }
+            
+            guard httpResponse.statusCode == 200 else {
+                print("❌ NetworkService: Voice command processing failed with status: \(httpResponse.statusCode)")
+                if httpResponse.statusCode == 401 {
+                    throw NetworkError.unauthorized
+                }
+                throw NetworkError.serverError("Voice command processing failed: \(httpResponse.statusCode)")
+            }
+            
+            // Parse voice command response
+            let decoder = JSONDecoder()
+            let result = try decoder.decode(VoiceCommandResponse.self, from: data)
+            
+            print("✅ NetworkService: Voice command processing successful")
+            print("✅ NetworkService: Task ID: \(result.taskId)")
+            print("✅ NetworkService: Status: \(result.status)")
+            
+            return result
+            
+        } catch {
+            print("❌ NetworkService: Voice command processing error: \(error)")
+            throw error
+        }
+    }
 }
