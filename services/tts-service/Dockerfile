@@ -46,6 +46,14 @@ RUN apt-get update && \
     libssl3 \
     libgomp1 \
     libatomic1 \
+    # Additional dependencies for Speech SDK
+    libgstreamer1.0-0 \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    libgstreamer-plugins-base1.0-0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

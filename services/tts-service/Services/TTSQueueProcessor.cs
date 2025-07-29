@@ -120,7 +120,7 @@ public class TTSQueueProcessor : BackgroundService
             _logger.LogTrace("Full TTS request message - RequestId: {RequestId}, Body: {Message}", requestId, body);
 
             using var scope = _serviceProvider.CreateScope();
-            var ttsService = scope.ServiceProvider.GetRequiredService<ITTSService>();
+            var ttsService = scope.ServiceProvider.GetRequiredService<VoiceCode.TTSService.Services.Interfaces.ITTSService>();
 
             // Create synthesis request
             var synthesisRequest = new SynthesisRequest
@@ -161,7 +161,7 @@ public class TTSQueueProcessor : BackgroundService
                     _logger.LogInformation("Preparing Audio Response - RequestId: {RequestId}, SessionId: {SessionId}, AudioUrl: {AudioUrl}",
                         requestId, effectiveSessionId, result.AudioUrl);
                     
-                    await SendAudioResponseToDispatcher(effectiveSessionId, requestId, result.AudioUrl, text, result.Duration / 1000.0);
+                    await SendAudioResponseToDispatcher(effectiveSessionId, taskId ?? requestId, result.AudioUrl, text, result.Duration / 1000.0);
                     
                     _logger.LogInformation("Audio Response Sent - RequestId: {RequestId}, SessionId: {SessionId}",
                         requestId, effectiveSessionId);
