@@ -3,6 +3,7 @@ using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using VoiceCode.Common.Models;
 using VoiceCode.Common.DTOs;
+using VoiceCode.Common.Interfaces;
 using VoiceCode.TTSService.Services.Interfaces;
 
 namespace VoiceCode.TTSService.Services;
@@ -12,17 +13,20 @@ public class TTSQueueProcessor : BackgroundService
     private readonly ILogger<TTSQueueProcessor> _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
+    private readonly IAudioResponseTableService _audioResponseTable;
     private ServiceBusClient? _serviceBusClient;
     private ServiceBusProcessor? _processor;
 
     public TTSQueueProcessor(
         ILogger<TTSQueueProcessor> logger,
         IServiceProvider serviceProvider,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IAudioResponseTableService audioResponseTable)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _configuration = configuration;
+        _audioResponseTable = audioResponseTable;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -225,6 +229,9 @@ public class TTSQueueProcessor : BackgroundService
             
             await sender.SendMessageAsync(serviceBusMessage);
             await sender.DisposeAsync();
+            
+            // Also store in Azure Table for HTTP polling
+            await _audioResponseTable.StoreAudioResponseAsync(taskId, sessionId, audioUrl, text, durationSeconds);
             
             _logger.LogInformation("Audio Response Dispatched - SessionId: {SessionId}, TaskId: {TaskId}, AudioUrl: {AudioUrl}, Duration: {Duration}s, MessageId: {MessageId}", 
                 sessionId, taskId, audioUrl, durationSeconds, serviceBusMessage.MessageId);

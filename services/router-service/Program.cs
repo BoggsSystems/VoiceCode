@@ -5,6 +5,7 @@ using VoiceCode.RouterService.Configuration;
 using VoiceCode.RouterService.Middleware;
 using VoiceCode.RouterService.Services;
 using VoiceCode.Common.Interfaces;
+using VoiceCode.Common.Services;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using StackExchange.Redis;
@@ -145,10 +146,9 @@ try
     builder.Services.AddSingleton<IContextManager, ContextManagerService>();
     builder.Services.AddSingleton<IPromptEnhancer, PromptEnhancerService>();
     builder.Services.AddSingleton<VoiceCode.RouterService.Services.IQueueService, ServiceBusQueueService>();
-    builder.Services.AddSingleton<IAudioResponseTracker, AudioResponseTracker>();
-
-    // Add background service to listen for audio responses
-    builder.Services.AddHostedService<AudioResponseListener>();
+    
+    // Add Azure Table Storage service for audio responses
+    builder.Services.AddSingleton<IAudioResponseTableService, AudioResponseTableService>();
 
     // Add health checks
     builder.Services.AddHealthChecks()

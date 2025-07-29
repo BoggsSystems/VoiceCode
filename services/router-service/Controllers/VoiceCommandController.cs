@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VoiceCode.RouterService.Services;
 using VoiceCode.Common.Models;
+using VoiceCode.Common.Interfaces;
 using System.Net.Http.Json;
 
 namespace VoiceCode.RouterService.Controllers;
@@ -15,20 +16,20 @@ public class VoiceCommandController : ControllerBase
     private readonly IIntentClassifier _intentClassifier;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
-    private readonly IAudioResponseTracker _audioTracker;
+    private readonly IAudioResponseTableService _audioResponseTable;
 
     public VoiceCommandController(
         ILogger<VoiceCommandController> logger,
         IIntentClassifier intentClassifier,
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
-        IAudioResponseTracker audioTracker)
+        IAudioResponseTableService audioResponseTable)
     {
         _logger = logger;
         _intentClassifier = intentClassifier;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
-        _audioTracker = audioTracker;
+        _audioResponseTable = audioResponseTable;
     }
 
     [HttpPost("process")]
@@ -128,7 +129,7 @@ public class VoiceCommandController : ControllerBase
         {
             _logger.LogInformation("Checking audio response for task {TaskId}", taskId);
 
-            var audioResponse = await _audioTracker.GetAudioResponseAsync(taskId);
+            var audioResponse = await _audioResponseTable.GetAudioResponseAsync(taskId);
             
             if (audioResponse == null)
             {
@@ -151,7 +152,7 @@ public class VoiceCommandController : ControllerBase
                 AudioUrl = audioResponse.AudioUrl,
                 Text = audioResponse.Text,
                 Duration = audioResponse.Duration,
-                Timestamp = audioResponse.Timestamp
+                Timestamp = audioResponse.CreatedAt
             });
         }
         catch (Exception ex)
