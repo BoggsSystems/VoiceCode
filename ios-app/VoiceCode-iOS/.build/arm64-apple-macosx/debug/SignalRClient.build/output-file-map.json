@@ -1,0 +1,185 @@
+{
+  "": {
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/master.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/CodableHelpers.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/CodableHelpers.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/CodableHelpers.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/CodableHelpers~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/CodableHelpers.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/Connection.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Connection.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Connection.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Connection~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Connection.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/ConnectionDelegate.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ConnectionDelegate.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ConnectionDelegate.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ConnectionDelegate~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ConnectionDelegate.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/DefaultHttpClient.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultHttpClient.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultHttpClient.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultHttpClient~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultHttpClient.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/DefaultTransportFactory.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultTransportFactory.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultTransportFactory.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultTransportFactory~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/DefaultTransportFactory.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HandshakeProtocol.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HandshakeProtocol.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HandshakeProtocol.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HandshakeProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HandshakeProtocol.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HttpClientProtocol.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpClientProtocol.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpClientProtocol.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpClientProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpClientProtocol.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HttpConnection.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnection.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnection.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnection~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnection.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HttpConnectionOptions.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnectionOptions.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnectionOptions.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnectionOptions~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpConnectionOptions.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HttpResponse.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpResponse.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpResponse.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpResponse~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HttpResponse.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HubConnection.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnection.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnection.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnection~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnection.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HubConnectionBuilder.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionBuilder.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionBuilder.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionBuilder~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionBuilder.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HubConnectionDelegate.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionDelegate.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionDelegate.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionDelegate~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionDelegate.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HubConnectionExtensions.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionExtensions.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionExtensions.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionExtensions~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionExtensions.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HubConnectionOptions.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionOptions.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionOptions.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionOptions~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubConnectionOptions.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/HubProtocol.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubProtocol.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubProtocol.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/HubProtocol.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/JSONHubProtocol.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/JSONHubProtocol.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/JSONHubProtocol.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/JSONHubProtocol~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/JSONHubProtocol.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/Logger.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Logger.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Logger.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Logger~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Logger.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/LongPollingTransport.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/LongPollingTransport.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/LongPollingTransport.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/LongPollingTransport~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/LongPollingTransport.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/NegotiationResponse.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/NegotiationResponse.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/NegotiationResponse.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/NegotiationResponse~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/NegotiationResponse.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/ReconnectPolicy.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectPolicy.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectPolicy.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectPolicy~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectPolicy.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/ReconnectableConnection.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectableConnection.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectableConnection.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectableConnection~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ReconnectableConnection.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/ServerInvocationHandler.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ServerInvocationHandler.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ServerInvocationHandler.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ServerInvocationHandler~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/ServerInvocationHandler.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/SignalRError.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/SignalRError.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/SignalRError.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/SignalRError~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/SignalRError.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/StreamHandle.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/StreamHandle.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/StreamHandle.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/StreamHandle~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/StreamHandle.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/TransferFormat.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransferFormat.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransferFormat.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransferFormat~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransferFormat.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/Transport.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Transport.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Transport.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Transport~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/Transport.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/TransportDelegate.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportDelegate.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportDelegate.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportDelegate~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportDelegate.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/TransportType.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportType.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportType.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportType~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/TransportType.swiftdeps"
+  },
+  "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/checkouts/SignalR-Client-Swift/Sources/SignalRClient/WebsocketsTransport.swift": {
+    "dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/WebsocketsTransport.d",
+    "object": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/WebsocketsTransport.swift.o",
+    "swiftmodule": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/WebsocketsTransport~partial.swiftmodule",
+    "swift-dependencies": "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/WebsocketsTransport.swiftdeps"
+  }
+}

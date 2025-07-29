@@ -52,7 +52,7 @@ ios-app/VoiceCode/
 
 The app uses the following backend endpoints:
 - Authentication: `/api/auth/login/simple`
-- SignalR Hub: `/voiceHub`
+- SignalR Hub: `https://voicecode-dispatcher.orangewater-a2f689a8.eastus.azurecontainerapps.io/hubs/voice`
 
 ## Key Components
 

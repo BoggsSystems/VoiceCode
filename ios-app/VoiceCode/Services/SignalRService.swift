@@ -16,7 +16,7 @@ class SignalRService: ObservableObject {
     let audioResponseReceived = PassthroughSubject<AudioResponse, Never>()
     let textResponseReceived = PassthroughSubject<TextResponse, Never>()
     
-    private let hubURL = "https://voicecode-router.orangewater-a2f689a8.eastus.azurecontainerapps.io/voiceHub"
+    private let hubURL = "https://voicecode-dispatcher.orangewater-a2f689a8.eastus.azurecontainerapps.io/hubs/voice"
     private var connection: HubConnection?
     private var sessionId: String?
     

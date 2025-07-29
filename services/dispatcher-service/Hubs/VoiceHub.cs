@@ -80,6 +80,45 @@ public class VoiceHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
+    [HubMethodName("ProcessVoiceRequest")]
+    public async Task<ProcessingResult> ProcessVoiceRequestAsync(VoiceRequestMessage message)
+    {
+        try
+        {
+            _logger.LogInformation("Processing voice request: {RequestId}", message.RequestId);
+
+            // Convert the web app's request format to our internal AudioMessage format
+            var audioMessage = new AudioMessage
+            {
+                Id = message.RequestId,
+                AudioData = Convert.FromBase64String(message.AudioData),
+                Format = "wav", // Assume WAV format for web app
+                SampleRate = 16000,
+                Language = message.Language ?? "en-US"
+            };
+
+            // Process using the existing audio processing logic
+            return await ProcessAudioAsync(audioMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing voice request {RequestId}", message.RequestId);
+            
+            await Clients.Caller.SendAsync("ProcessingError", new 
+            { 
+                messageId = message.RequestId, 
+                error = ex.Message 
+            });
+
+            return new ProcessingResult
+            {
+                Success = false,
+                Error = ex.Message,
+                MessageId = message.RequestId
+            };
+        }
+    }
+
     [HubMethodName("ProcessAudio")]
     public async Task<ProcessingResult> ProcessAudioAsync(AudioMessage message)
     {
@@ -349,6 +388,15 @@ public class AudioMessage
     public string Format { get; set; } = "wav";
     public int SampleRate { get; set; } = 16000;
     public string? Language { get; set; }
+}
+
+public class VoiceRequestMessage
+{
+    public string RequestId { get; set; } = Guid.NewGuid().ToString();
+    public string AudioData { get; set; } = string.Empty; // Base64 encoded audio
+    public string MimeType { get; set; } = "audio/wav";
+    public string Language { get; set; } = "en-US";
+    public string Timestamp { get; set; } = DateTime.UtcNow.ToString("O");
 }
 
 public class TextMessage
