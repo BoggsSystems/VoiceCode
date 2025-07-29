@@ -6,6 +6,7 @@ using VoiceCode.TTSService.Middleware;
 using VoiceCode.TTSService.Services;
 using VoiceCode.TTSService.Services.Interfaces;
 using VoiceCode.Common.Interfaces;
+using VoiceCode.Common.Services;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using StackExchange.Redis;
@@ -135,6 +136,9 @@ try
     builder.Services.AddScoped<VoiceCode.Common.Interfaces.IAudioStorageService, AudioStorageService>();
     builder.Services.AddSingleton<IVoicePersonalityService, VoicePersonalityService>();
     builder.Services.AddSingleton<ISSMLBuilder, SSMLBuilderService>();
+    
+    // Add Azure Table Storage service for audio responses
+    builder.Services.AddSingleton<IAudioResponseTableService, AudioResponseTableService>();
     
     // Add background service for Service Bus processing
     builder.Services.AddHostedService<TTSQueueProcessor>();
