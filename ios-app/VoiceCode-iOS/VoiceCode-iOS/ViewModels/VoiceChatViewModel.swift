@@ -12,12 +12,16 @@ class VoiceChatViewModel: ObservableObject {
     @Published var currentResponse = ""
     @Published var errorMessage: String?
     @Published var showPermissionAlert = false
+    @Published var messages: [Message] = []
     
     // Audio playback
     @Published var audioQueue: [AudioQueueItem] = []
     @Published var isPlayingAudio = false
     @Published var currentPlayingAudio: AudioQueueItem?
     private var playedAudioUrls = Set<String>()
+    
+    // Session tracking
+    private let sessionId = "ios-\(Date().timeIntervalSince1970)-\(UUID().uuidString.prefix(8))"
     
     // Services
     private let audioService = AudioService.shared
@@ -32,47 +36,16 @@ class VoiceChatViewModel: ObservableObject {
     }
     
     private func setupBindings() {
-        print("🎵 VoiceChatViewModel: Setting up SignalR bindings")
+        print("🎵 VoiceChatViewModel: Setting up bindings for HTTP mode")
         
-        // Bind SignalR connection status
-        signalRService.$isConnected
-            .receive(on: DispatchQueue.main)
-            .assign(to: &$isConnected)
-        print("🎵 VoiceChatViewModel: SignalR connection status binding set up")
+        // For HTTP mode, we check connection status based on auth token
+        isConnected = KeychainService.shared.getAuthToken() != nil
+        print("🎵 VoiceChatViewModel: Connection status based on auth token: \(isConnected)")
         
-        // Listen for transcription results
-        signalRService.transcriptionReceived
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] transcription in
-                print("🎵 VoiceChatViewModel: Transcription received from SignalR")
-                self?.handleTranscription(transcription)
-            }
-            .store(in: &cancellables)
-        print("🎵 VoiceChatViewModel: Transcription listener set up")
+        // We can still optionally use SignalR for real-time updates
+        // but the primary audio submission will go through HTTP
         
-        // Listen for audio responses
-        signalRService.audioResponseReceived
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] audioResponse in
-                print("🎵 VoiceChatViewModel: Audio response received from SignalR")
-                print("🎵 VoiceChatViewModel: Audio response ID: \(audioResponse.id)")
-                print("🎵 VoiceChatViewModel: Audio response URL: \(audioResponse.audioUrl)")
-                self?.handleAudioResponse(audioResponse)
-            }
-            .store(in: &cancellables)
-        print("🎵 VoiceChatViewModel: Audio response listener set up")
-        
-        // Listen for text responses
-        signalRService.textResponseReceived
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] response in
-                print("🎵 VoiceChatViewModel: Text response received from SignalR")
-                self?.currentResponse = response.text
-            }
-            .store(in: &cancellables)
-        print("🎵 VoiceChatViewModel: Text response listener set up")
-        
-        print("🎵 VoiceChatViewModel: All SignalR bindings set up successfully")
+        print("🎵 VoiceChatViewModel: Bindings set up for HTTP mode")
     }
     
     func initialize() async {
@@ -91,19 +64,16 @@ class VoiceChatViewModel: ObservableObject {
         
         print("✅ VoiceChatViewModel: Microphone permission granted")
         
-        // Connect to SignalR
-        print("🎵 VoiceChatViewModel: Connecting to SignalR...")
-        do {
-            try await signalRService.connect()
-            print("✅ VoiceChatViewModel: SignalR connection successful")
-        } catch {
-            print("❌ VoiceChatViewModel: ===== SIGNALR CONNECTION FAILED =====")
-            print("❌ VoiceChatViewModel: Timestamp: \(Date())")
-            print("❌ VoiceChatViewModel: Error type: \(type(of: error))")
-            print("❌ VoiceChatViewModel: Error: \(error)")
-            print("❌ VoiceChatViewModel: Error description: \(error.localizedDescription)")
-            errorMessage = "Failed to connect: \(error.localizedDescription)"
-            print("❌ VoiceChatViewModel: Error message set: \(errorMessage ?? "nil")")
+        // Check authentication status
+        print("🎵 VoiceChatViewModel: Checking authentication status...")
+        if KeychainService.shared.getAuthToken() != nil {
+            print("✅ VoiceChatViewModel: Authentication token found")
+            isConnected = true
+            status = .ready
+        } else {
+            print("❌ VoiceChatViewModel: No authentication token found")
+            errorMessage = "Not authenticated. Please log in."
+            status = .error(errorMessage ?? "Not authenticated")
         }
         
         print("🎵 VoiceChatViewModel: ===== VOICE CHAT INITIALIZATION COMPLETE =====")
@@ -175,11 +145,39 @@ class VoiceChatViewModel: ObservableObject {
             print("✅ VoiceChatViewModel: Audio data size: \(audioData.count) bytes")
             print("✅ VoiceChatViewModel: Audio data size in KB: \(Double(audioData.count) / 1024.0) KB")
             
-            // Send to backend via SignalR
-            print("🎵 VoiceChatViewModel: Calling signalRService.sendAudioData()")
-            try await signalRService.sendAudioData(audioData)
-            print("✅ VoiceChatViewModel: Audio data sent to SignalR successfully")
-            print("✅ VoiceChatViewModel: ===== RECORDING STOPPED AND SENT =====")
+            // Use HTTP endpoint instead of SignalR
+            print("🎵 VoiceChatViewModel: Using HTTP endpoint for audio submission")
+            
+            // Step 1: Transcribe audio
+            print("🎵 VoiceChatViewModel: Calling NetworkService.transcribeAudio()")
+            let transcriptionResult = try await NetworkService.shared.transcribeAudio(audioData)
+            print("✅ VoiceChatViewModel: Transcription received: \(transcriptionResult.text)")
+            
+            // Update UI with transcription
+            await MainActor.run {
+                self.currentTranscript = transcriptionResult.text
+                self.addMessage(content: transcriptionResult.text, type: .user)
+            }
+            
+            // Step 2: Process voice command
+            print("🎵 VoiceChatViewModel: Calling NetworkService.processVoiceCommand()")
+            let commandResult = try await NetworkService.shared.processVoiceCommand(
+                transcriptionResult.text,
+                sessionId: sessionId
+            )
+            print("✅ VoiceChatViewModel: Voice command processed successfully")
+            print("✅ VoiceChatViewModel: Task ID: \(commandResult.taskId)")
+            print("✅ VoiceChatViewModel: Status: \(commandResult.status)")
+            
+            // Update status
+            await MainActor.run {
+                self.status = .ready
+                if let message = commandResult.message {
+                    self.addMessage(content: message, type: .assistant)
+                }
+            }
+            
+            print("✅ VoiceChatViewModel: ===== RECORDING STOPPED AND PROCESSED =====")
             
         } catch {
             print("❌ VoiceChatViewModel: ===== RECORDING STOP FAILED =====")
@@ -317,6 +315,11 @@ class VoiceChatViewModel: ObservableObject {
     func skipCurrentAudio() {
         audioService.stopAudio()
         playNextAudio()
+    }
+    
+    func addMessage(content: String, type: Message.MessageType) {
+        let message = Message(content: content, type: type)
+        messages.append(message)
     }
 }
 
