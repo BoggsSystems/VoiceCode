@@ -1,0 +1,4 @@
+module SignalRClient {
+    header "/Users/jeffboggs/VoiceCode/ios-app/VoiceCode-iOS/.build/arm64-apple-macosx/debug/SignalRClient.build/SignalRClient-Swift.h"
+    requires objc
+}
