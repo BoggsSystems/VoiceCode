@@ -382,14 +382,22 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
         
         if (context.RelevantFiles.Any())
         {
-            prompt.AppendLine("\nRelevant files in the project:");
+            prompt.AppendLine("\nExisting files in the project:");
             foreach (var file in context.RelevantFiles.Take(10))
             {
                 prompt.AppendLine($"- {file}");
             }
         }
+        else
+        {
+            prompt.AppendLine("\nThe project directory is currently empty.");
+        }
         
-        prompt.AppendLine("\nPlease execute the voice command and make the necessary changes to the codebase.");
+        prompt.AppendLine("\nIMPORTANT: Please CREATE the necessary files to implement the voice command.");
+        prompt.AppendLine("- If asked to create a function, create a new file with that function");
+        prompt.AppendLine("- If asked to create a program, create the appropriate source files");
+        prompt.AppendLine("- Use appropriate file names and extensions based on the programming language");
+        prompt.AppendLine("\nExecute the voice command by creating the requested code files.");
         
         return prompt.ToString();
     }
@@ -398,32 +406,20 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
     {
         var operations = new List<FileOperation>();
         
-        // Parse progress messages to extract file operations
-        foreach (var message in progressMessages)
-        {
-            if (message.Contains("Creating file:", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains("Writing file:", StringComparison.OrdinalIgnoreCase))
-            {
-                var parts = message.Split(':', 2);
-                if (parts.Length > 1)
-                {
-                    operations.Add(new FileOperation
-                    {
-                        Type = "create",
-                        FilePath = parts[1].Trim(),
-                        Content = "File created/modified by SDK"
-                    });
-                }
-            }
-        }
+        // Since claude-agent writes files directly to the filesystem,
+        // we don't need to track individual operations.
+        // The files are already written to /workspaces/{workspaceId}/
         
-        // Add any operations from stream updates
+        // We could parse tool calls if needed for audit/reporting:
         if (sdkResult.StreamUpdates != null)
         {
-            foreach (var update in sdkResult.StreamUpdates)
+            foreach (var update in sdkResult.StreamUpdates.Where(u => u.Type == "tool_call"))
             {
-                if (update.Type == "file_operation" && update.Data != null)
+                if (update.Data != null && 
+                    update.Data.TryGetValue("tool", out var tool) && 
+                    tool?.ToString() == "write_file")
                 {
+                    // Just for reporting - files are already written
                     operations.Add(new FileOperation
                     {
                         Type = update.Data.GetValueOrDefault("operationType")?.ToString() ?? "create",

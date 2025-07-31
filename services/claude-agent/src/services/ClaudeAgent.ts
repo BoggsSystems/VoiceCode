@@ -39,7 +39,7 @@ export class ClaudeAgent extends EventEmitter {
       apiKey: options.apiKey,
     });
     
-    this.model = options.model || 'claude-3-opus-20240229';
+    this.model = options.model || 'claude-3-5-sonnet-20241022';
     this.maxTokens = options.maxTokens || 4096;
     this.temperature = options.temperature || 0;
   }
@@ -218,17 +218,24 @@ export class ClaudeAgent extends EventEmitter {
   }
 
   private buildSystemPrompt(): string {
-    return `You are Claude, an AI assistant with access to a codebase mounted at /project.
-You can explore, analyze, and modify files in this codebase using the provided tools.
+    const workspaceRoot = process.env.WORKSPACE_ROOT || '/project';
+    return `You are Claude, an AI assistant with access to a codebase mounted at ${workspaceRoot}.
+You can create, read, modify, and delete files in this codebase using the provided tools.
 
-Important guidelines:
-1. Always start by understanding the project structure using get_project_summary or list_dir
-2. Read files to understand the codebase before making changes
-3. When modifying files, preserve existing formatting and style
-4. Explain your reasoning and findings clearly
-5. Be thorough in your analysis
+IMPORTANT: When the user asks you to create code, functions, programs, or any implementation:
+1. ALWAYS create the appropriate files with the requested code
+2. Use proper file extensions (.py for Python, .c for C, .js for JavaScript, etc.)
+3. Write complete, working implementations
+4. Include helpful comments in the code
+5. If the directory is empty, that's perfect - create the files they're asking for
 
-The user cannot see which tools you're calling - focus on providing clear explanations of what you discover and what changes you make.`;
+Guidelines:
+- When asked to "create a function", create a new file with that function
+- When asked to "implement" something, create the necessary files
+- Don't just explore or analyze - take action and create files
+- If unsure about the file name, use descriptive names based on the request
+
+Remember: You should actively CREATE files when asked to implement something, not just explore the directory.`;
   }
 
   private extractTextContent(response: Anthropic.Message): string {

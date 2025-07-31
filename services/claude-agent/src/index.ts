@@ -60,9 +60,36 @@ app.get('/health', (_, res) => {
   });
 });
 
+// SDK availability check (expected by worker)
+app.get('/api/sdk/available', (_, res) => {
+  res.json({ 
+    available: true,
+    version: '1.0.0'
+  });
+});
+
+// Session management endpoints (expected by worker)
+app.post('/api/sdk/sessions', (req, res) => {
+  const { WorkspaceId } = req.body;
+  const sessionId = `session-${WorkspaceId}-${Date.now()}`;
+  
+  logger.info({ WorkspaceId, sessionId }, 'Creating session (stub)');
+  
+  res.json({
+    sessionId: sessionId
+  });
+});
+
+app.delete('/api/sdk/sessions/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  
+  logger.info({ sessionId }, 'Closing session (stub)');
+  
+  res.status(204).send();
+});
+
 // Main task endpoint
 app.post('/task', async (req, res) => {
-  return
   try {
     const { message, sessionId } = req.body;
     
@@ -93,7 +120,7 @@ app.post('/task', async (req, res) => {
       timestamp: new Date()
     });
     
-    res.json({
+    return res.json({
       success: result.success,
       response: result.response,
       error: result.error,
@@ -102,7 +129,7 @@ app.post('/task', async (req, res) => {
     });
   } catch (error: unknown) {
     logger.error({ error }, 'Task processing failed');
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: (error as any) instanceof Error ? (error as Error).message : 'Internal server error'
     });
@@ -111,7 +138,6 @@ app.post('/task', async (req, res) => {
 
 // Tool execution endpoint (for testing individual tools)
 app.post('/tool/:toolName', async (req, res) => {
-  return
   try {
     const { toolName } = req.params;
     const input = req.body;
@@ -142,10 +168,10 @@ app.post('/tool/:toolName', async (req, res) => {
         return res.status(404).json({ error: 'Tool not found' });
     }
     
-    res.json(result);
+    return res.json(result);
   } catch (error: unknown) {
     logger.error({ error }, 'Tool execution failed');
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: (error as any) instanceof Error ? (error as Error).message : 'Internal server error'
     });

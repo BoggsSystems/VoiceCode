@@ -11,7 +11,7 @@ import {
 } from '../types/tools.js';
 
 const execAsync = promisify(exec);
-const PROJECT_ROOT = '/project';
+const PROJECT_ROOT = process.env.WORKSPACE_ROOT || '/project';
 
 // Ensure path is within project bounds
 function safePath(userPath: string): string {
