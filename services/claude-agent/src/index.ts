@@ -91,7 +91,7 @@ app.delete('/api/sdk/sessions/:sessionId', (req, res) => {
 // Main task endpoint
 app.post('/task', async (req, res) => {
   try {
-    const { message, sessionId } = req.body;
+    const { message, sessionId, workingDirectory } = req.body;
     
     if (!message) {
       return res.status(400).json({ 
@@ -99,7 +99,7 @@ app.post('/task', async (req, res) => {
       });
     }
 
-    logger.info({ message, sessionId }, 'Processing task');
+    logger.info({ message, sessionId, workingDirectory }, 'Processing task');
     
     // Execute the task
     const result = await agent.executeTask(message);
@@ -218,7 +218,7 @@ const server = app.listen(port, () => {
   logger.info({ port }, 'Claude Agent started');
   logger.info({ 
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
-    projectRoot: '/project',
+    projectRoot: process.env.WORKSPACE_ROOT || '/project',
     serviceBus: !!process.env.AZURE_SERVICE_BUS_CONNECTION_STRING
   }, 'Service configuration');
 });

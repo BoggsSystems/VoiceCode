@@ -78,7 +78,8 @@ public class ClaudeCodeSidecarClient : IClaudeCodeSidecarClient
             var request = new
             {
                 message = prompt,
-                sessionId = sessionId
+                sessionId = sessionId,
+                workingDirectory = workingDirectory
             };
 
             var response = await _httpClient.PostAsJsonAsync("/task", request, _jsonOptions);

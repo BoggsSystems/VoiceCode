@@ -270,26 +270,33 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
         var prompt = new StringBuilder();
         prompt.AppendLine($"Voice command: {voiceCommand}");
         prompt.AppendLine($"\nProject type: {context.ProjectType}");
+        
+        // Extract workspace ID from path
+        var workspaceId = Path.GetFileName(context.RootPath);
         prompt.AppendLine($"Working directory: {context.RootPath}");
+        prompt.AppendLine($"\nCRITICAL: You MUST prefix ALL file paths with '{workspaceId}/'");
+        prompt.AppendLine($"For example: Use '{workspaceId}/package.json' NOT 'package.json'");
+        prompt.AppendLine($"For example: Use '{workspaceId}/src/App.js' NOT 'src/App.js'");
         
         if (context.RelevantFiles.Any())
         {
-            prompt.AppendLine("\nExisting files in the project:");
+            prompt.AppendLine($"\nExisting files in the {workspaceId}/ directory:");
             foreach (var file in context.RelevantFiles.Take(10))
             {
-                prompt.AppendLine($"- {file}");
+                prompt.AppendLine($"- {workspaceId}/{file}");
             }
         }
         else
         {
-            prompt.AppendLine("\nThe project directory is currently empty.");
+            prompt.AppendLine($"\nThe {workspaceId}/ directory is currently empty.");
         }
         
-        prompt.AppendLine("\nIMPORTANT: Please CREATE the necessary files to implement the voice command.");
+        prompt.AppendLine($"\nIMPORTANT: Please CREATE the necessary files to implement the voice command.");
+        prompt.AppendLine($"- ALWAYS prefix file paths with '{workspaceId}/' (e.g., '{workspaceId}/main.py')");
         prompt.AppendLine("- If asked to create a function, create a new file with that function");
         prompt.AppendLine("- If asked to create a program, create the appropriate source files");
         prompt.AppendLine("- Use appropriate file names and extensions based on the programming language");
-        prompt.AppendLine("\nExecute the voice command by creating the requested code files.");
+        prompt.AppendLine($"\nExecute the voice command by creating the requested code files in the '{workspaceId}/' directory.");
         
         return prompt.ToString();
     }
