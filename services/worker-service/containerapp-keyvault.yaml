@@ -1,0 +1,60 @@
+properties:
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 80
+      transport: auto
+    registries:
+      - server: voicecodebuildsprod.azurecr.io
+        identity: /subscriptions/42533332-e34e-4e78-b052-f051bc7d5206/resourcegroups/voicecode/providers/Microsoft.ManagedIdentity/userAssignedIdentities/voicecode-worker-identity
+    secrets:
+      - name: claude-api-key
+        keyVaultUrl: https://voicecodedevkveus.vault.azure.net/secrets/ClaudeApiKey
+        identity: /subscriptions/42533332-e34e-4e78-b052-f051bc7d5206/resourcegroups/voicecode/providers/Microsoft.ManagedIdentity/userAssignedIdentities/voicecode-worker-identity
+      - name: servicebus-connection-string
+        keyVaultUrl: https://voicecodedevkveus.vault.azure.net/secrets/ServiceBusConnectionString
+        identity: /subscriptions/42533332-e34e-4e78-b052-f051bc7d5206/resourcegroups/voicecode/providers/Microsoft.ManagedIdentity/userAssignedIdentities/voicecode-worker-identity
+  template:
+    containers:
+      - name: worker
+        image: voicecodebuildsprod.azurecr.io/voicecode-worker:latest
+        resources:
+          cpu: 1
+          memory: 2Gi
+        env:
+          - name: Worker__SidecarUrl
+            value: http://localhost:3000
+          - name: Worker__ClaudeApiKey
+            secretRef: claude-api-key
+          - name: ServiceBus__ConnectionString
+            secretRef: servicebus-connection-string
+          - name: ApplicationInsights__ConnectionString
+            value: ""
+          - name: AZURE_CLIENT_ID
+            value: df5cce2f-93b2-472e-9040-ecfca9d2f8d5
+          - name: KeyVaultName
+            value: voicecodedevkveus
+          - name: ASPNETCORE_ENVIRONMENT
+            value: Production
+        volumeMounts:
+          - volumeName: shared-workspace
+            mountPath: /workspaces
+      - name: claude-agent
+        image: voicecodebuildsprod.azurecr.io/claude-agent:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: ANTHROPIC_API_KEY
+            secretRef: claude-api-key
+          - name: WORKSPACE_ROOT
+            value: /project
+          - name: PORT
+            value: "3000"
+        volumeMounts:
+          - volumeName: shared-workspace
+            mountPath: /project
+    volumes:
+      - name: shared-workspace
+        storageType: EmptyDir

@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/worker-service/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - Worker__UseSidecar=true
+      - Worker__SidecarUrl=http://sidecar:3000
+      - ServiceBus__ConnectionString=${AZURE_SERVICE_BUS_CONNECTION_STRING}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "8080:80"
+    depends_on:
+      - sidecar
+    networks:
+      - voicecode-network
+
+  sidecar:
+    build:
+      context: ../claude-sdk-sidecar
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AZURE_SERVICE_BUS_CONNECTION_STRING=${AZURE_SERVICE_BUS_CONNECTION_STRING}
+      - SDK_STREAM_QUEUE_NAME=sdk-stream-events
+      - LOG_LEVEL=info
+    ports:
+      - "3000:3000"
+    networks:
+      - voicecode-network
+
+networks:
+  voicecode-network:
+    driver: bridge

@@ -5,7 +5,7 @@ EXPOSE 443
 
 # Install git for repository operations
 RUN apt-get update && \
-    apt-get install -y git && \
+    apt-get install -y git curl wget && \
     rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build

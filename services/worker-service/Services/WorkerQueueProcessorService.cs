@@ -149,7 +149,10 @@ public class WorkerQueueProcessorService : BackgroundService
                 Parameters = new Dictionary<string, object>
                 {
                     ["voiceCommand"] = workerPayload.Command,
-                    ["sessionId"] = workerPayload.Context?.SessionId ?? ""
+                    ["sessionId"] = workerPayload.Context?.SessionId ?? "",
+                    ["userId"] = workerPayload.Context?.UserId ?? "",
+                    ["workerNumber"] = workerPayload.Context?.WorkerNumber ?? 1,
+                    ["originalTranscription"] = workerPayload.Context?.OriginalTranscription ?? workerPayload.Command
                 },
                 CreatedAt = DateTime.UtcNow
             };

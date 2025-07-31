@@ -1,0 +1,45 @@
+properties:
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 80
+      transport: auto
+  template:
+    containers:
+      - name: worker
+        image: voicecodebuildsprod.azurecr.io/voicecode-worker:latest
+        resources:
+          cpu: 1
+          memory: 2Gi
+        env:
+          - name: Worker__SidecarUrl
+            value: http://localhost:3000
+          - name: Worker__ClaudeApiKey
+            secretRef: claude-api-key
+          - name: ServiceBus__ConnectionString
+            secretRef: servicebus-connection-string
+          - name: ApplicationInsights__ConnectionString
+            secretRef: appinsights-connection-string
+        volumeMounts:
+          - volumeName: shared-workspace
+            mountPath: /workspaces
+      - name: claude-agent
+        image: voicecodebuildsprod.azurecr.io/claude-agent:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: ANTHROPIC_API_KEY
+            secretRef: claude-api-key
+          - name: WORKSPACE_ROOT
+            value: /project
+          - name: PORT
+            value: "3000"
+        volumeMounts:
+          - volumeName: shared-workspace
+            mountPath: /project
+    volumes:
+      - name: shared-workspace
+        storageType: EmptyDir
+        storageName: workspaces

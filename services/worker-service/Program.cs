@@ -1,10 +1,46 @@
 using Serilog;
 using VoiceCode.WorkerService.Configuration;
 using VoiceCode.WorkerService.Services;
+using VoiceCode.WorkerService.Models;
+using Microsoft.Extensions.Azure;
+using Azure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog
+// Configure Serilog early for logging
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .Enrich.FromLogContext()
+    .Enrich.WithProperty("Service", "WorkerService")
+    .CreateBootstrapLogger();
+
+// Add Azure Key Vault configuration
+if (!builder.Environment.IsDevelopment())
+{
+    var keyVaultName = builder.Configuration["KeyVaultName"];
+    Log.Information($"Environment: {builder.Environment.EnvironmentName}, KeyVaultName: {keyVaultName ?? "not set"}");
+    
+    if (!string.IsNullOrEmpty(keyVaultName))
+    {
+        try
+        {
+            var keyVaultEndpoint = new Uri($"https://{keyVaultName}.vault.azure.net/");
+            var credential = new DefaultAzureCredential();
+            builder.Configuration.AddAzureKeyVault(keyVaultEndpoint, credential);
+            Log.Information($"Successfully configured Key Vault: {keyVaultName}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, $"Failed to configure Key Vault: {keyVaultName}");
+        }
+    }
+    else
+    {
+        Log.Warning("KeyVaultName not configured - Key Vault integration disabled");
+    }
+}
+
+// Reconfigure Serilog with full configuration
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
@@ -29,10 +65,16 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.Configure<WorkerOptions>(builder.Configuration.GetSection(WorkerOptions.SectionName));
 builder.Services.Configure<McpOptions>(builder.Configuration.GetSection(McpOptions.SectionName));
 
+// Register Azure clients
+builder.Services.AddAzureClients(clientBuilder =>
+{
+    clientBuilder.AddServiceBusClient(builder.Configuration["ServiceBus:ConnectionString"]);
+});
+
 // Register services
 builder.Services.AddSingleton<IMcpClientService, McpClientService>();
-builder.Services.AddSingleton<IClaudeCodeCliService, ClaudeCodeCliService>();
 builder.Services.AddHttpClient<IClaudeApiService, ClaudeApiService>();
+builder.Services.AddHttpClient<IClaudeCodeSidecarClient, ClaudeCodeSidecarClient>();
 builder.Services.AddScoped<IFileOperationExecutor, FileOperationExecutor>();
 builder.Services.AddScoped<IRepositoryAnalyzer, RepositoryAnalyzer>();
 builder.Services.AddScoped<IClaudeCodeWorkerService, ClaudeCodeWorkerService>();
