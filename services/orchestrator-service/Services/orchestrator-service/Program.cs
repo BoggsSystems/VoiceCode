@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.SignalR;
+using VoiceCode.OrchestratorService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,9 @@ builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add memory cache for session storage
+builder.Services.AddMemoryCache();
+
 // Add session support for worker context tracking
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
@@ -18,6 +22,16 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });
+
+// Add orchestration services
+builder.Services.AddSingleton<ISessionStorageService, SessionStorageService>();
+builder.Services.AddSingleton<IPromptTemplateService, PromptTemplateService>();
+builder.Services.AddHttpClient<IChatGPTService, ChatGPTService>();
+builder.Services.AddHttpClient<ITTSServiceClient, TTSServiceClient>();
+builder.Services.AddScoped<IPhaseAwareOrchestrationService, PhaseAwareOrchestrationService>();
+
+// Add existing orchestration services (if they exist)
+builder.Services.AddScoped<IWorkerManagementService, WorkerManagementService>();
 
 // Configure Service Bus
 builder.Services.AddSingleton<ServiceBusClient>(sp =>

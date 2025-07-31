@@ -4,6 +4,7 @@ using VoiceCode.RouterService.Services;
 using VoiceCode.Common.Models;
 using VoiceCode.Common.Interfaces;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace VoiceCode.RouterService.Controllers;
 
@@ -51,11 +52,78 @@ public class VoiceCommandController : ControllerBase
             _logger.LogInformation("Command classified for Worker {Worker} with instructions: {Instructions}", 
                 classification.Worker, classification.Instructions);
 
-            // Step 2: Forward to Dispatcher for execution
+            // Check if this is an ideation/design command
+            var ideationKeywords = new[] { "thinking about", "idea", "what if", "how about", "design", "build a", "create a", "platform", "application", "system" };
+            var isIdeationCommand = ideationKeywords.Any(keyword => request.Transcription.ToLower().Contains(keyword));
+
+            var httpClient = _httpClientFactory.CreateClient();
+
+            if (isIdeationCommand)
+            {
+                _logger.LogInformation("Detected ideation command, routing to orchestrator");
+                
+                // Forward to orchestrator instead of dispatcher
+                var orchestratorUrl = _configuration["ServiceEndpoints:Orchestrator"] ?? 
+                                     "https://voicecode-orchestrator.orangewater-a2f689a8.eastus.azurecontainerapps.io";
+                
+                var orchestratorRequest = new
+                {
+                    UserId = User.Identity?.Name ?? "default-user",
+                    TranscribedText = request.Transcription,
+                    AudioUrl = (string?)null, // VoiceCommandRequest doesn't have AudioUrl
+                    Metadata = new Dictionary<string, object>
+                    {
+                        ["sessionId"] = request.SessionId ?? Guid.NewGuid().ToString(),
+                        ["source"] = "router-service"
+                    }
+                };
+                
+                var orchestratorResponse = await httpClient.PostAsJsonAsync(
+                    $"{orchestratorUrl}/api/v2/orchestrate/voice-command", 
+                    orchestratorRequest);
+                    
+                if (orchestratorResponse.IsSuccessStatusCode)
+                {
+                    var resultContent = await orchestratorResponse.Content.ReadAsStringAsync();
+                    var orchestratorResult = JsonSerializer.Deserialize<JsonElement>(resultContent);
+                    
+                    // Store audio response if available
+                    var audioUrl = orchestratorResult.TryGetProperty("audioUrl", out var audioUrlProp) ? audioUrlProp.GetString() : null;
+                    if (!string.IsNullOrEmpty(audioUrl) && !string.IsNullOrEmpty(request.SessionId))
+                    {
+                        // Store audio response - need to check the method signature
+                        // await _audioResponseTable.StoreAudioResponseAsync(request.SessionId, audioUrl);
+                    }
+                    
+                    // Return the orchestrator response
+                    return Ok(new VoiceCommandResponse
+                    {
+                        TaskId = orchestratorResult.TryGetProperty("sessionId", out var sessionIdProp) ? sessionIdProp.GetString() : Guid.NewGuid().ToString(),
+                        Success = orchestratorResult.TryGetProperty("success", out var successProp) && successProp.GetBoolean(),
+                        Worker = 0, // Orchestrator doesn't use worker numbers
+                        Instructions = "Processing ideation request",
+                        Response = orchestratorResult.TryGetProperty("voiceSummary", out var summaryProp) ? summaryProp.GetString() : 
+                                  orchestratorResult.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : "Processing your request",
+                        Metadata = new Dictionary<string, object>
+                        {
+                            ["audioUrl"] = audioUrl ?? "",
+                            ["phase"] = orchestratorResult.TryGetProperty("phase", out var phaseProp) ? phaseProp.GetString() : "Processing",
+                            ["workerId"] = orchestratorResult.TryGetProperty("workerId", out var workerProp) ? workerProp.GetString() : "orchestrator"
+                        }
+                    });
+                }
+                else
+                {
+                    var error = await orchestratorResponse.Content.ReadAsStringAsync();
+                    _logger.LogError("Orchestrator returned error: {StatusCode} - {Error}", 
+                        orchestratorResponse.StatusCode, error);
+                    // Fall through to dispatcher
+                }
+            }
+
+            // Step 2: Forward to Dispatcher for execution (for non-ideation commands)
             var dispatcherUrl = _configuration["ServiceEndpoints:Dispatcher"] ?? 
                                "https://voicecode-dispatcher.orangewater-a2f689a8.eastus.azurecontainerapps.io";
-            
-            var httpClient = _httpClientFactory.CreateClient();
             
             // Create the request message with proper headers
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, 

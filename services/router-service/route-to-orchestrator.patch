@@ -1,0 +1,48 @@
+// Quick patch for VoiceCommandController.cs to route ideation commands to orchestrator
+
+// In ProcessVoiceCommand method, after classification:
+
+// Check if this is an ideation/design command
+var ideationKeywords = new[] { "thinking about", "idea", "what if", "how about", "design", "build a", "create a", "platform", "application", "system" };
+var isIdeationCommand = ideationKeywords.Any(keyword => request.Transcription.ToLower().Contains(keyword));
+
+if (isIdeationCommand)
+{
+    _logger.LogInformation("Detected ideation command, routing to orchestrator");
+    
+    // Forward to orchestrator instead of dispatcher
+    var orchestratorUrl = _configuration["ServiceEndpoints:Orchestrator"] ?? 
+                         "https://voicecode-orchestrator.orangewater-a2f689a8.eastus.azurecontainerapps.io";
+    
+    var orchestratorRequest = new
+    {
+        UserId = User.Identity?.Name ?? "default-user",
+        TranscribedText = request.Transcription,
+        AudioUrl = request.AudioUrl,
+        Metadata = new Dictionary<string, object>
+        {
+            ["sessionId"] = request.SessionId ?? Guid.NewGuid().ToString(),
+            ["source"] = "router-service"
+        }
+    };
+    
+    var orchestratorResponse = await httpClient.PostAsJsonAsync(
+        $"{orchestratorUrl}/api/v2/orchestrate/voice-command", 
+        orchestratorRequest);
+        
+    if (orchestratorResponse.IsSuccessStatusCode)
+    {
+        var result = await orchestratorResponse.Content.ReadFromJsonAsync<dynamic>();
+        
+        // Return the orchestrator response
+        return Ok(new VoiceCommandResult
+        {
+            TaskId = result.sessionId,
+            Success = result.success,
+            Message = result.voiceSummary ?? result.message,
+            AudioUrl = result.audioUrl,
+            WorkerId = result.workerId ?? "orchestrator",
+            Status = result.phase
+        });
+    }
+}

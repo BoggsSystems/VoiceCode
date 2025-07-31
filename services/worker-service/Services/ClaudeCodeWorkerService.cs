@@ -268,11 +268,23 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
     private string BuildSdkPrompt(string voiceCommand, RepositoryContext context)
     {
         var prompt = new StringBuilder();
-        prompt.AppendLine($"Voice command: {voiceCommand}");
-        prompt.AppendLine($"\nProject type: {context.ProjectType}");
         
         // Extract workspace ID from path
         var workspaceId = Path.GetFileName(context.RootPath);
+        
+        // Check if we have implementation context in the voice command
+        if (voiceCommand.Contains("following specifications:"))
+        {
+            // This is a full implementation with context
+            prompt.AppendLine(voiceCommand);
+        }
+        else
+        {
+            // Standard voice command
+            prompt.AppendLine($"Voice command: {voiceCommand}");
+        }
+        
+        prompt.AppendLine($"\nProject type: {context.ProjectType}");
         prompt.AppendLine($"Working directory: {context.RootPath}");
         prompt.AppendLine($"\nCRITICAL: You MUST prefix ALL file paths with '{workspaceId}/'");
         prompt.AppendLine($"For example: Use '{workspaceId}/package.json' NOT 'package.json'");

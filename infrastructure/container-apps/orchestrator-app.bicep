@@ -47,6 +47,11 @@ resource orchestratorApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/ServiceBusConnectionString'
           identity: managedIdentityId
         }
+        {
+          name: 'openai-api-key'
+          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/openai-api-key'
+          identity: managedIdentityId
+        }
       ]
       registries: [
         {
@@ -132,6 +137,10 @@ resource orchestratorApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             {
               name: 'ServiceEndpoints__RouterService'
               value: 'https://voicecode-router.internal.${split(environmentId, '/')[8]}.azurecontainerapps.io'
+            }
+            {
+              name: 'OpenAI__ApiKey'
+              secretRef: 'openai-api-key'
             }
           ]
           probes: [
