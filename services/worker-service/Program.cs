@@ -87,9 +87,7 @@ builder.Services.AddAzureClients(clientBuilder =>
 
 // Register services
 builder.Services.AddSingleton<IMcpClientService, McpClientService>();
-builder.Services.AddHttpClient<IClaudeApiService, ClaudeApiService>();
 builder.Services.AddHttpClient<IClaudeCodeSidecarClient, ClaudeCodeSidecarClient>();
-builder.Services.AddScoped<IFileOperationExecutor, FileOperationExecutor>();
 builder.Services.AddScoped<IRepositoryAnalyzer, RepositoryAnalyzer>();
 builder.Services.AddScoped<IClaudeCodeWorkerService, ClaudeCodeWorkerService>();
 builder.Services.AddHostedService<WorkerQueueProcessorService>();

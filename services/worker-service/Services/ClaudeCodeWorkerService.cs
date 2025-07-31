@@ -17,9 +17,7 @@ public interface IClaudeCodeWorkerService
 public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
 {
     private readonly ILogger<ClaudeCodeWorkerService> _logger;
-    private readonly IClaudeApiService _claudeApi;
     private readonly IClaudeCodeSidecarClient _sidecarClient;
-    private readonly IFileOperationExecutor _fileOperationExecutor;
     private readonly IRepositoryAnalyzer _repositoryAnalyzer;
     private readonly WorkerOptions _options;
     private readonly WorkerStatus _status;
@@ -27,16 +25,12 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
     
     public ClaudeCodeWorkerService(
         ILogger<ClaudeCodeWorkerService> logger,
-        IClaudeApiService claudeApi,
         IClaudeCodeSidecarClient sidecarClient,
-        IFileOperationExecutor fileOperationExecutor,
         IRepositoryAnalyzer repositoryAnalyzer,
         IOptions<WorkerOptions> options)
     {
         _logger = logger;
-        _claudeApi = claudeApi;
         _sidecarClient = sidecarClient;
-        _fileOperationExecutor = fileOperationExecutor;
         _repositoryAnalyzer = repositoryAnalyzer;
         _options = options.Value;
         _status = new WorkerStatus
@@ -88,20 +82,9 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
             _logger.LogInformation("Using sidecar client - SessionId: {SessionId}, WorkerId: {WorkerId}", 
                 sessionId, _status.WorkerId);
 
-            // Determine whether to use SDK or API based on task complexity
-            var useSdk = ShouldUseSdk(voiceCommand, task);
-            _logger.LogInformation("Execution mode: {Mode}", useSdk ? "Claude Code SDK" : "Direct API");
-
-            if (useSdk)
-            {
-                // Execute using Claude Code SDK
-                result = await ExecuteWithSdkAsync(task, voiceCommand, sessionId);
-            }
-            else
-            {
-                // Fall back to original API implementation
-                result = await ExecuteWithApiAsync(task, voiceCommand);
-            }
+            // Always use Claude Agent (no direct API fallback)
+            _logger.LogInformation("Executing with Claude Agent");
+            result = await ExecuteWithSdkAsync(task, voiceCommand, sessionId);
             
             if (!result.Success)
             {
@@ -187,17 +170,6 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
         }
     }
 
-    private bool ShouldUseSdk(string voiceCommand, WorkerTask task)
-    {
-        // Use SDK for more complex operations that benefit from its features
-        var sdkKeywords = new[] { "create", "build", "implement", "add", "update", "refactor", "generate", "scaffold" };
-        var usesSdkKeyword = sdkKeywords.Any(keyword => voiceCommand.Contains(keyword, StringComparison.OrdinalIgnoreCase));
-        
-        // Check if task explicitly requests SDK
-        var preferSdk = task.Parameters.GetValueOrDefault("useSdk")?.ToString()?.Equals("true", StringComparison.OrdinalIgnoreCase) ?? false;
-        
-        return usesSdkKeyword || preferSdk;
-    }
 
     private async Task<WorkerTaskResult> ExecuteWithSdkAsync(WorkerTask task, string voiceCommand, string sessionId)
     {
@@ -214,8 +186,7 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
             // Check if SDK is available
             if (!await _sidecarClient.IsAvailableAsync())
             {
-                _logger.LogWarning("Claude Code SDK not available, falling back to API");
-                return await ExecuteWithApiAsync(task, voiceCommand);
+                throw new InvalidOperationException("Claude Agent is not available. Cannot process voice command.");
             }
 
             var workspaceRoot = Path.Combine(_options.WorkspaceBasePath, task.WorkspaceId);
@@ -289,85 +260,6 @@ public class ClaudeCodeWorkerService : IClaudeCodeWorkerService
             _logger.LogError(ex, "Error executing with SDK");
             result.Error = ex.Message;
             result.Summary = $"SDK execution error: {ex.Message}";
-        }
-
-        return result;
-    }
-
-    private async Task<WorkerTaskResult> ExecuteWithApiAsync(WorkerTask task, string voiceCommand)
-    {
-        _logger.LogInformation("=== EXECUTING WITH DIRECT API ===");
-        
-        var result = new WorkerTaskResult
-        {
-            TaskId = task.Id,
-            Success = false
-        };
-
-        try
-        {
-            var workspaceRoot = Path.Combine(_options.WorkspaceBasePath, task.WorkspaceId);
-            
-            // Analyze repository context
-            var repoContext = await _repositoryAnalyzer.AnalyzeRepositoryAsync(workspaceRoot);
-            _logger.LogInformation("Repository analyzed - Type: {Type}, Files: {FileCount}", 
-                repoContext.ProjectType, repoContext.RelevantFiles.Count);
-            
-            // Generate file operations using Claude API
-            var fileOperations = await _claudeApi.GenerateFileOperationsAsync(voiceCommand, repoContext);
-            _logger.LogInformation("Claude API returned {Count} operations", fileOperations.Operations.Count);
-            
-            // Execute file operations
-            var executionResult = await _fileOperationExecutor.ExecuteOperationsAsync(
-                fileOperations.Operations, 
-                workspaceRoot);
-            
-            _logger.LogInformation("File operations completed: {Success}/{Total} successful",
-                executionResult.SuccessfulOperations, executionResult.TotalOperations);
-            
-            // Build result
-            var summaryBuilder = new StringBuilder();
-            summaryBuilder.AppendLine(fileOperations.Summary);
-            
-            if (executionResult.FailedOperations > 0)
-            {
-                summaryBuilder.AppendLine($"\nNote: {executionResult.FailedOperations} operations failed.");
-            }
-            
-            result = new WorkerTaskResult
-            {
-                TaskId = task.Id,
-                Success = executionResult.FailedOperations == 0,
-                Summary = summaryBuilder.ToString(),
-                Error = executionResult.FailedOperations > 0 
-                    ? string.Join("; ", executionResult.ExecutedOperations
-                        .Where(op => !op.Success)
-                        .Select(op => $"{op.Operation.Path}: {op.Error}"))
-                    : null,
-                FileOperations = executionResult.ExecutedOperations.Select(op => new FileOperation
-                {
-                    Type = op.Operation.Type,
-                    FilePath = op.Operation.Path,
-                    Content = op.ResultContent,
-                    OldContent = op.OriginalContent
-                }).ToList(),
-                Metadata = new Dictionary<string, object>
-                {
-                    ["voiceCommand"] = voiceCommand,
-                    ["workerId"] = _status.WorkerId,
-                    ["executionMode"] = "API",
-                    ["projectType"] = repoContext.ProjectType,
-                    ["operationsRequested"] = fileOperations.Operations.Count,
-                    ["operationsSucceeded"] = executionResult.SuccessfulOperations,
-                    ["timestamp"] = DateTime.UtcNow
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing with API");
-            result.Error = ex.Message;
-            result.Summary = $"API execution error: {ex.Message}";
         }
 
         return result;
