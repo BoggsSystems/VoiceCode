@@ -69,7 +69,7 @@ export class ClaudeAgent extends EventEmitter {
       });
 
       // Process the response and handle tool calls
-      let finalResponse = await this.processResponse(response, toolCalls);
+      let finalResponse = await this.processResponse(response, toolCalls, message);
       
       return {
         success: true,
@@ -92,7 +92,8 @@ export class ClaudeAgent extends EventEmitter {
 
   private async processResponse(
     response: Anthropic.Message,
-    toolCalls: TaskResult['toolCalls'] = []
+    toolCalls: TaskResult['toolCalls'] = [],
+    originalMessage: string
   ): Promise<Anthropic.Message> {
     // Check if Claude wants to use tools
     const toolUses = response.content.filter(
@@ -143,10 +144,7 @@ export class ClaudeAgent extends EventEmitter {
     const messages: any[] = [
       {
         role: 'user',
-        content: response.content.filter(c => c.type === 'text').map(c => ({
-          type: 'text' as const,
-          text: (c as any).text
-        }))
+        content: originalMessage
       },
       {
         role: 'assistant',
@@ -166,7 +164,7 @@ export class ClaudeAgent extends EventEmitter {
     });
 
     // Recursively process if more tools are needed
-    return this.processResponse(nextResponse, toolCalls);
+    return this.processResponse(nextResponse, toolCalls, originalMessage);
   }
 
   private async executeTool(toolName: string, input: any): Promise<any> {
