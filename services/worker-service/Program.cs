@@ -28,6 +28,20 @@ if (!builder.Environment.IsDevelopment())
             var credential = new DefaultAzureCredential();
             builder.Configuration.AddAzureKeyVault(keyVaultEndpoint, credential);
             Log.Information($"Successfully configured Key Vault: {keyVaultName}");
+            
+            // Log available configuration sources
+            Log.Information("Configuration sources after Key Vault: {Sources}", 
+                string.Join(", ", builder.Configuration.Sources.Select(s => s.GetType().Name)));
+            
+            // Test if we can read the Claude API key from configuration
+            var testKey = builder.Configuration["ClaudeApiKey"];
+            Log.Information("ClaudeApiKey from configuration exists: {Exists}, Length: {Length}", 
+                !string.IsNullOrEmpty(testKey), testKey?.Length ?? 0);
+            
+            // Also check environment variables
+            var envApiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+            Log.Information("ANTHROPIC_API_KEY from environment exists: {Exists}, Length: {Length}", 
+                !string.IsNullOrEmpty(envApiKey), envApiKey?.Length ?? 0);
         }
         catch (Exception ex)
         {

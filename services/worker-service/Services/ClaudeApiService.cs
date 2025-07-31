@@ -26,8 +26,23 @@ public class ClaudeApiService : IClaudeApiService
     {
         _logger = logger;
         _httpClient = httpClient;
-        _apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? 
-                  throw new InvalidOperationException("ANTHROPIC_API_KEY environment variable is not set");
+        
+        // Enhanced logging for API key
+        var apiKeyFromEnv = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        _logger.LogInformation("ANTHROPIC_API_KEY environment variable exists: {Exists}", !string.IsNullOrEmpty(apiKeyFromEnv));
+        
+        if (string.IsNullOrEmpty(apiKeyFromEnv))
+        {
+            _logger.LogError("ANTHROPIC_API_KEY environment variable is not set or empty");
+            throw new InvalidOperationException("ANTHROPIC_API_KEY environment variable is not set");
+        }
+        
+        // Log API key details (safely)
+        _logger.LogInformation("API Key length: {Length}", apiKeyFromEnv.Length);
+        _logger.LogInformation("API Key starts with: {Prefix}", apiKeyFromEnv.Length > 10 ? apiKeyFromEnv.Substring(0, 10) + "..." : "TOO_SHORT");
+        _logger.LogInformation("API Key format check - starts with 'sk-': {StartsWithSk}", apiKeyFromEnv.StartsWith("sk-"));
+        
+        _apiKey = apiKeyFromEnv;
         
         _jsonOptions = new JsonSerializerOptions
         {
@@ -155,20 +170,34 @@ Remember: You're implementing real code that will be executed. Make it productio
     {
         _logger.LogInformation("Calling Claude API with model: {Model}", request.Model);
         
+        // Enhanced logging for API call
+        _logger.LogInformation("Preparing API request to: https://api.anthropic.com/v1/messages");
+        _logger.LogInformation("Using API key with length: {KeyLength}, starts with 'sk-': {StartsWithSk}", 
+            _apiKey.Length, _apiKey.StartsWith("sk-"));
+        
         var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
         httpRequest.Headers.Add("x-api-key", _apiKey);
         httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+        
+        // Log headers (without exposing full key)
+        _logger.LogInformation("Request headers set - x-api-key: {KeyPreview}, anthropic-version: 2023-06-01", 
+            _apiKey.Length > 10 ? _apiKey.Substring(0, 10) + "..." : "TOO_SHORT");
+        
         httpRequest.Content = new StringContent(
             JsonSerializer.Serialize(request, _jsonOptions),
             Encoding.UTF8,
             "application/json");
         
+        _logger.LogInformation("Sending request to Claude API...");
         var httpResponse = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        
+        _logger.LogInformation("Claude API response status: {StatusCode}", httpResponse.StatusCode);
         
         if (!httpResponse.IsSuccessStatusCode)
         {
             var error = await httpResponse.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError("Claude API error: {StatusCode} - {Error}", httpResponse.StatusCode, error);
+            _logger.LogError("Response headers: {Headers}", httpResponse.Headers.ToString());
             throw new HttpRequestException($"Claude API error: {httpResponse.StatusCode} - {error}");
         }
         

@@ -87,6 +87,11 @@ public class WorkerQueueProcessorService : BackgroundService
         _logger.LogInformation("Message ID: {MessageId}, Sequence: {SequenceNumber}, Size: {Size} bytes", 
             messageId, sequenceNumber, args.Message.Body.ToArray().Length);
         
+        // Log environment check
+        _logger.LogInformation("Environment check - ANTHROPIC_API_KEY exists: {Exists}, WORKER_ID: {WorkerId}", 
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")),
+            Environment.GetEnvironmentVariable("WORKER_ID") ?? "not set");
+        
         try
         {
             var body = Encoding.UTF8.GetString(args.Message.Body);
