@@ -118,7 +118,7 @@ properties:
           memory: 1Gi
         volumeMounts:
           - volumeName: shared-workspace
-            mountPath: /project
+            mountPath: /workspaces
         env:
           - name: NODE_ENV
             value: production
@@ -138,8 +138,8 @@ properties:
             value: claude-3-opus-20240229
           - name: CLAUDE_MAX_TOKENS
             value: "4096"
-          - name: PROJECT_ROOT
-            value: /project
+          - name: WORKSPACE_ROOT
+            value: /workspaces
     scale:
       minReplicas: 1
       maxReplicas: 1

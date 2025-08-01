@@ -33,12 +33,12 @@ properties:
           - name: ANTHROPIC_API_KEY
             secretRef: claude-api-key
           - name: WORKSPACE_ROOT
-            value: /project
+            value: /workspaces
           - name: PORT
             value: "3000"
         volumeMounts:
           - volumeName: shared-workspace
-            mountPath: /project
+            mountPath: /workspaces
     volumes:
       - name: shared-workspace
         storageType: EmptyDir
